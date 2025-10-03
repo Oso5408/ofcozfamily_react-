@@ -44,9 +44,7 @@ The build command executes `tools/generate-llms.js` before building, which appea
 - **Utilities**: `src/lib/` - Utility functions for email, time, and general helpers
 
 ### Authentication System
-The app uses localStorage-based authentication with hardcoded admin accounts:
-- admin@of-coz.com (password: admin123)
-- manager@of-coz.com (password: manager123)
+The app uses localStorage-based authentication. Admin accounts must be created manually through the registration system and then granted admin privileges.
 
 Users have token-based access with 180-day validity periods.
 

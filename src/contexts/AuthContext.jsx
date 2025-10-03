@@ -30,34 +30,9 @@ export const AuthProvider = ({ children }) => {
       }
       
       let users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-      if (users.length === 0) {
-        const defaultAdmins = [
-          {
-            id: 'admin1',
-            name: 'Admin',
-            email: 'admin@of-coz.com',
-            password: 'admin123',
-            phone: '66238788',
-            isAdmin: true,
-            tokens: 9999,
-            tokenValidUntil: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'admin2',
-            name: 'Manager',
-            email: 'manager@of-coz.com',
-            password: 'manager123',
-            phone: '66238788',
-            isAdmin: true,
-            tokens: 9999,
-            tokenValidUntil: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
-            createdAt: new Date().toISOString()
-          }
-        ];
-        localStorage.setItem('ofcoz_users', JSON.stringify(defaultAdmins));
-        users = defaultAdmins;
-      }
+
+      // Note: Admin accounts must be created manually through registration
+      // No default credentials for security reasons
       
       const updatedUsers = users.map(u => {
           if (!u.tokenValidUntil) {
