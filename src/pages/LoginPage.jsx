@@ -40,8 +40,8 @@ export const LoginPage = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const result = login(email, password, rememberMe);
-    
+    const result = await login(email, password, rememberMe);
+
     if (result.success) {
       toast({
         title: language === 'zh' ? '登入成功！' : 'Login Successful!',
@@ -51,11 +51,11 @@ export const LoginPage = () => {
     } else {
       toast({
         title: language === 'zh' ? '登入失敗' : 'Login Failed',
-        description: language === 'zh' ? '電郵或密碼錯誤' : 'Invalid email or password',
+        description: result.error || (language === 'zh' ? '電郵或密碼錯誤' : 'Invalid email or password'),
         variant: "destructive"
       });
     }
-    
+
     setIsLoading(false);
   };
 

@@ -248,4 +248,89 @@ export const bookingService = {
       )
       .subscribe();
   },
+
+  /**
+   * Get bookings pending payment (admin only)
+   */
+  async getPendingPayments() {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          users (id, email, full_name, phone),
+          rooms (*)
+        `)
+        .eq('payment_status', 'pending')
+        .eq('status', 'pending_payment')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, bookings: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Mark booking as paid (admin only)
+   */
+  async markAsPaid(bookingId, adminUserId, adminNotes = '') {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          payment_status: 'paid',
+          status: 'confirmed',
+          payment_confirmed_at: new Date().toISOString(),
+          payment_confirmed_by: adminUserId,
+          admin_notes: adminNotes,
+        })
+        .eq('id', bookingId)
+        .select(`
+          *,
+          users (id, email, full_name),
+          rooms (*)
+        `)
+        .single();
+
+      if (error) throw error;
+      return { success: true, booking: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Get bookings by date range
+   */
+  async getBookingsByDateRange(startDate, endDate, options = {}) {
+    try {
+      let query = supabase
+        .from('bookings')
+        .select(`
+          *,
+          users (id, email, full_name),
+          rooms (*)
+        `)
+        .gte('start_time', startDate)
+        .lte('start_time', endDate)
+        .order('start_time', { ascending: true });
+
+      if (options.status) {
+        query = query.eq('status', options.status);
+      }
+
+      if (options.roomId) {
+        query = query.eq('room_id', options.roomId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return { success: true, bookings: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
 };

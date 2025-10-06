@@ -132,7 +132,21 @@ export const BookingModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+      <DialogContent
+        className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6"
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking on Select dropdown or any Radix portaled content
+          const target = e.target;
+          if (
+            target.closest('[role="listbox"]') ||
+            target.closest('[data-radix-popper-content-wrapper]') ||
+            target.closest('[data-radix-select-content]') ||
+            target.closest('[data-radix-portal]')
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-amber-800">
             {t.booking.combinedTitle}
@@ -182,8 +196,48 @@ export const BookingModal = ({
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div><Label className="text-amber-800">{t.booking.startTime}</Label><Select value={bookingData.startTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, startTime: value, endTime: '' })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-amber-800">{t.booking.endTime}</Label><Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
+                  <div>
+                    <Label className="text-amber-800">{t.booking.startTime}</Label>
+                    <Select
+                      value={bookingData.startTime || ''}
+                      onValueChange={(value) => {
+                        console.log('🕐 Token Start Time Selected:', value);
+                        setBookingData({ ...bookingData, startTime: value, endTime: '' });
+                      }}
+                      onOpenChange={(open) => {
+                        console.log('🔓 Token Start Time Dropdown:', open ? 'OPENED' : 'CLOSED');
+                      }}
+                    >
+                      <SelectTrigger
+                        onClick={() => console.log('🖱️ Token Start Time Trigger Clicked')}
+                        disabled={!bookingData.date}
+                      >
+                        <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Please select date first')} />
+                      </SelectTrigger>
+                      <SelectContent position="popper" onCloseAutoFocus={(e) => {
+                        console.log('🎯 Token Start Time Close Auto Focus');
+                        e.preventDefault();
+                      }}>
+                        {console.log('📋 Token Time Options Available:', timeOptions.length)}
+                        {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-amber-800">{t.booking.endTime}</Label>
+                    <Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}>
+                      <SelectTrigger disabled={!bookingData.startTime}>
+                        <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
+                      </SelectTrigger>
+                      <SelectContent position="popper">
+                        {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -196,12 +250,74 @@ export const BookingModal = ({
                   </TabsList>
                   <TabsContent value="hourly" className="pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><Label className="text-amber-800">{t.booking.startTime}</Label><Select value={bookingData.startTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, startTime: value, endTime: '' })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
-                      <div><Label className="text-amber-800">{t.booking.endTime}</Label><Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
+                      <div>
+                        <Label className="text-amber-800">{t.booking.startTime}</Label>
+                        <Select
+                          value={bookingData.startTime || ''}
+                          onValueChange={(value) => {
+                            console.log('🕐 Cash Start Time Selected:', value);
+                            setBookingData({ ...bookingData, startTime: value, endTime: '' });
+                          }}
+                          onOpenChange={(open) => {
+                            console.log('🔓 Cash Start Time Dropdown:', open ? 'OPENED' : 'CLOSED');
+                            console.log('📊 Current bookingData:', bookingData);
+                            console.log('📅 Selected date:', bookingData.date);
+                            console.log('⚠️ Date is:', bookingData.date ? 'SET ✅' : 'NOT SET ❌ - Please select a date first!');
+                            console.log('🏠 Selected room:', selectedRoom?.id, selectedRoom?.name);
+                          }}
+                        >
+                          <SelectTrigger
+                            onClick={() => console.log('🖱️ Cash Start Time Trigger Clicked')}
+                            disabled={!bookingData.date}
+                          >
+                            <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Please select date first')} />
+                          </SelectTrigger>
+                          <SelectContent position="popper" onCloseAutoFocus={(e) => {
+                            console.log('🎯 Cash Start Time Close Auto Focus');
+                            e.preventDefault();
+                          }}>
+                            {console.log('📋 Cash Time Options Available:', timeOptions.length, timeOptions)}
+                            {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-amber-800">{t.booking.endTime}</Label>
+                        <Select
+                          value={bookingData.endTime || ''}
+                          onValueChange={(value) => {
+                            console.log('🕐 Cash End Time Selected:', value);
+                            setBookingData({ ...bookingData, endTime: value });
+                          }}
+                        >
+                          <SelectTrigger disabled={!bookingData.startTime}>
+                            <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
+                          </SelectTrigger>
+                          <SelectContent position="popper">
+                            {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </TabsContent>
                   <TabsContent value="daily" className="pt-4">
-                    <div><Label className="text-amber-800">{t.booking.timeSlot}</Label><Select value={`${bookingData.startTime}-${bookingData.endTime}`} onValueChange={(value) => { const [start, end] = value.split('-'); setBookingData({ ...bookingData, startTime: start, endTime: end }); }}><SelectTrigger><SelectValue placeholder={t.booking.selectTimeSlot} /></SelectTrigger><SelectContent>{availableDailySlots.map(slot => <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>)}</SelectContent></Select></div>
+                    <div>
+                      <Label className="text-amber-800">{t.booking.timeSlot}</Label>
+                      <Select value={`${bookingData.startTime}-${bookingData.endTime}`} onValueChange={(value) => { const [start, end] = value.split('-'); setBookingData({ ...bookingData, startTime: start, endTime: end }); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t.booking.selectTimeSlot} />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          {availableDailySlots.map(slot => (
+                            <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </TabsContent>
                   <TabsContent value="monthly" className="pt-4">
                     <form onSubmit={handleMonthlyInquiry} className="space-y-4">

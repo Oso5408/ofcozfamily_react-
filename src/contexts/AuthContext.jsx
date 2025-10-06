@@ -49,6 +49,15 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('🔔 Auth state changed:', event);
+        console.log('📧 Session user:', session?.user?.email);
+        console.log('🆔 Session ID:', session?.user?.id);
+
+        // Log stack trace to see what triggered SIGNED_OUT
+        if (event === 'SIGNED_OUT') {
+          console.log('🚨 SIGNED_OUT triggered! Stack trace:');
+          console.trace();
+        }
+
         if (session?.user) {
           setUser(session.user);
           // Fetch profile WITHOUT await to avoid deadlock
@@ -63,6 +72,7 @@ export const AuthProvider = ({ children }) => {
             })
             .catch(err => console.error('Profile fetch error in listener:', err));
         } else {
+          console.log('⚠️ No session - clearing user and profile');
           setUser(null);
           setProfile(null);
         }
@@ -148,6 +158,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log('🚪 Logout called! Stack trace:');
+      console.trace();
       await authService.signOut();
       setUser(null);
       setProfile(null);

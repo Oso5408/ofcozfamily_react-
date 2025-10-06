@@ -111,7 +111,7 @@ export const RoomsSection = () => {
   
   const cashRooms = visibleRooms
     .filter(room => room.bookingOptions.includes('cash'))
-    .sort((a,b) => a.id - b.id);
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const tokenRooms = visibleRooms
     .filter(room => room.bookingOptions.includes('token'))

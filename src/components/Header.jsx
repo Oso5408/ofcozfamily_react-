@@ -10,11 +10,24 @@ import { Menu, X, User } from 'lucide-react';
 
 export const Header = () => {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const t = translations[language];
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Header Debug:');
+    console.log('  isLoading:', isLoading);
+    console.log('  User:', user);
+    console.log('  User.is_admin:', user?.is_admin);
+    console.log('  User.is_admin === true?', user?.is_admin === true);
+    console.log('  Profile:', profile);
+    console.log('  Profile.is_admin:', profile?.is_admin);
+    console.log('  Profile.is_admin === true?', profile?.is_admin === true);
+    console.log('  Should show admin button?', (user?.is_admin === true) || (profile?.is_admin === true));
+  }, [user, profile, isLoading]);
 
   const handleScroll = () => {
     if (window.scrollY > 20) {
@@ -78,16 +91,30 @@ export const Header = () => {
 
         <div className="flex items-center space-x-2">
           <LanguageToggle />
-          {user ? (
-            <Button onClick={() => navigate('/dashboard')} variant="ghost" className="text-amber-700 hover:bg-amber-100">
-              <User className="w-5 h-5 mr-2" />
-              {language === 'zh' ? '我的帳戶' : 'My Account'}
-            </Button>
-          ) : (
+          {!isLoading && (user || profile) ? (
+            <>
+              {((user?.is_admin === true) || (profile?.is_admin === true)) && (
+                <Button
+                  onClick={() => {
+                    console.log('🔘 Admin button clicked');
+                    navigate('/admin');
+                  }}
+                  variant="outline"
+                  className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                >
+                  {language === 'zh' ? '管理員' : 'Admin'}
+                </Button>
+              )}
+              <Button onClick={() => navigate('/dashboard')} variant="ghost" className="text-amber-700 hover:bg-amber-100">
+                <User className="w-5 h-5 mr-2" />
+                {language === 'zh' ? '我的帳戶' : 'My Account'}
+              </Button>
+            </>
+          ) : !isLoading ? (
             <Button onClick={() => navigate('/login')} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white">
               {language === 'zh' ? '登入' : 'Login'}
             </Button>
-          )}
+          ) : null}
           <button
             className="md:hidden text-amber-700"
             onClick={() => setIsMenuOpen(!isMenuOpen)}

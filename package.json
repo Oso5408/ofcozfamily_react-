@@ -8,6 +8,11 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "overrides": {
+    "@radix-ui/react-dismissable-layer": "1.1.1",
+    "@radix-ui/react-focus-scope": "1.1.0",
+    "@radix-ui/react-portal": "1.1.2"
+  },
   "dependencies": {
     "@emotion/is-prop-valid": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.0.5",

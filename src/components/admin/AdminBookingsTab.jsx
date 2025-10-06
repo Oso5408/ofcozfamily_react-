@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash, DollarSign } from 'lucide-react';
 import { EditBookingModal } from './EditBookingModal';
+import { PaymentConfirmModal } from './PaymentConfirmModal';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { generateReceiptNumber } from '@/lib/utils';
+import { bookingService } from '@/services';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +28,11 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const { language } = useLanguage();
   const t = translations[language];
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [editingBooking, setEditingBooking] = useState(null);
   const [bookingToCancel, setBookingToCancel] = useState(null);
+  const [bookingToConfirmPayment, setBookingToConfirmPayment] = useState(null);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   const handleUpdateBookingStatus = (bookingId, newStatus) => {
     const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
@@ -91,7 +97,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
     let hasConflict = false;
 
-    const roomBookings = allBookings.filter(booking => 
+    const roomBookings = allBookings.filter(booking =>
       booking.room.id === updatedBooking.room.id &&
       booking.date === updatedBooking.date &&
       booking.status === 'confirmed' &&
@@ -100,13 +106,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
 
     const newStart = new Date(`${updatedBooking.date}T${updatedBooking.startTime}:00`);
     const newEnd = new Date(`${updatedBooking.date}T${updatedBooking.endTime}:00`);
-    
+
     hasConflict = roomBookings.some(booking => {
       const existingStart = new Date(`${booking.date}T${booking.startTime}:00`);
       const existingEnd = new Date(`${booking.date}T${booking.endTime}:00`);
       return (newStart < existingEnd && newEnd > existingStart);
     });
-    
+
     if (updatedBooking.room.id === 1) { // B&C
         const roomCBookings = allBookings.filter(b => b.room.id === 2 && b.date === updatedBooking.date && b.status === 'confirmed' && b.id !== updatedBooking.id);
         if(roomCBookings.some(b => (newStart < new Date(`${b.date}T${b.endTime}:00`) && newEnd > new Date(`${b.date}T${b.startTime}:00`)))) {
@@ -127,7 +133,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       });
       return;
     }
-    
+
     const originalBooking = allBookings.find(b => b.id === updatedBooking.id);
     const requiresReconfirmation = !originalBooking.userId || originalBooking.userId !== updatedBooking.userId || originalBooking.date !== updatedBooking.date || originalBooking.startTime !== updatedBooking.startTime || originalBooking.endTime !== updatedBooking.endTime;
 
@@ -135,7 +141,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     if (!finalBooking.receiptNumber) {
       finalBooking.receiptNumber = generateReceiptNumber();
     }
-    
+
     const updatedBookingsList = allBookings.map(b => b.id === finalBooking.id ? finalBooking : b);
     localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookingsList));
     setBookings(updatedBookingsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
@@ -145,6 +151,59 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       title: t.admin.bookingUpdated,
       description: requiresReconfirmation ? (language === 'zh' ? '訂單已修改，等待客戶重新確認。' : 'Booking modified and awaiting re-confirmation.') : t.admin.bookingUpdatedDesc
     });
+  };
+
+  // Handle payment confirmation for cash bookings
+  const handleConfirmPayment = async (adminNotes) => {
+    if (!bookingToConfirmPayment || !currentUser) return;
+
+    setIsConfirmingPayment(true);
+
+    try {
+      const result = await bookingService.markAsPaid(
+        bookingToConfirmPayment.id,
+        currentUser.id,
+        adminNotes
+      );
+
+      if (!result.success) {
+        toast({
+          title: language === 'zh' ? '操作失敗' : 'Operation Failed',
+          description: result.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Update bookings list
+      const updatedBookings = bookings.map(b =>
+        b.id === bookingToConfirmPayment.id ? result.booking : b
+      );
+      setBookings(updatedBookings);
+
+      // Send confirmation email (optional)
+      // sendBookingConfirmationEmail(result.booking, language);
+
+      toast({
+        title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
+        description: language === 'zh'
+          ? '預約已確認，客戶將收到通知。'
+          : 'Booking confirmed. Customer will be notified.',
+      });
+
+      setBookingToConfirmPayment(null);
+    } catch (error) {
+      console.error('Payment confirmation error:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: language === 'zh'
+          ? '無法確認付款，請稍後再試。'
+          : 'Could not confirm payment. Please try again later.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsConfirmingPayment(false);
+    }
   };
 
   const getUserName = (userId) => {
@@ -234,6 +293,16 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                       {t.admin.confirmBooking}
                     </Button>
                   )}
+                  {booking.status === 'pending_payment' && booking.payment_status === 'pending' && (
+                    <Button
+                      onClick={() => setBookingToConfirmPayment(booking)}
+                      size="sm"
+                      className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                    >
+                      <DollarSign className="w-4 h-4 mr-1" />
+                      {language === 'zh' ? '確認收款' : 'Mark as Paid'}
+                    </Button>
+                  )}
                    {booking.status !== 'cancelled' && (
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -313,6 +382,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
           onSave={handleSaveBooking}
         />
       )}
+      <PaymentConfirmModal
+        isOpen={!!bookingToConfirmPayment}
+        onClose={() => setBookingToConfirmPayment(null)}
+        booking={bookingToConfirmPayment}
+        onConfirm={handleConfirmPayment}
+        isLoading={isConfirmingPayment}
+      />
     </div>
   );
 };

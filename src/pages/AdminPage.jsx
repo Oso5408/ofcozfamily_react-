@@ -41,7 +41,15 @@ export const AdminPage = () => {
 
 
   useEffect(() => {
-    if (!user || !user.isAdmin) {
+    console.log('🔒 AdminPage access check:', {
+      user,
+      'user.isAdmin': user?.isAdmin,
+      'user.is_admin': user?.is_admin,
+      'will_redirect': !user || (!user.isAdmin && !user.is_admin)
+    });
+
+    if (!user || (!user.isAdmin && !user.is_admin)) {
+      console.log('⛔ Access denied - redirecting to home');
       navigate('/');
       return;
     }

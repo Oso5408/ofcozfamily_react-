@@ -128,4 +128,23 @@ export const roomService = {
       )
       .subscribe();
   },
+
+  /**
+   * Toggle room visibility (admin only)
+   */
+  async toggleRoomVisibility(roomId, hidden) {
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .update({ hidden })
+        .eq('id', roomId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, room: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
 };

@@ -57,7 +57,7 @@ export const roomsData = [
     description: 'RoomFDescription',
     bookingOptions: ['token', 'cash'],
     prices: { token: 1, cash: { hourly: 120, daily: 600, monthly: 5000 } },
-    hidden: true,
+    hidden: false,
   },
   {
     id: 6,
@@ -93,6 +93,6 @@ export const roomsData = [
     description: 'RoomADescription',
     bookingOptions: ['token', 'cash'],
     prices: { token: 1, cash: { hourly: 120, daily: 600, monthly: 5000 } },
-    hidden: true,
+    hidden: false,
   }
 ];
