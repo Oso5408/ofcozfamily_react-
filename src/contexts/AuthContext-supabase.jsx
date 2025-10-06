@@ -44,24 +44,17 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
 
     // Listen for auth changes
-    // IMPORTANT: Cannot use await/async Supabase calls here due to deadlock bug
-    // See: https://github.com/supabase/auth-js/issues/936
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('🔔 Auth state changed:', event);
+      async (event, session) => {
         if (session?.user) {
           setUser(session.user);
-          // Fetch profile WITHOUT await to avoid deadlock
-          supabase
+          // Fetch profile
+          const { data: userProfile } = await supabase
             .from('users')
             .select('*')
             .eq('id', session.user.id)
-            .single()
-            .then(({ data: userProfile }) => {
-              console.log('👤 Profile fetched in listener:', userProfile);
-              setProfile(userProfile);
-            })
-            .catch(err => console.error('Profile fetch error in listener:', err));
+            .single();
+          setProfile(userProfile);
         } else {
           setUser(null);
           setProfile(null);
@@ -89,42 +82,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: result.error };
       }
 
-      console.log('✅ Auth user created successfully');
-
-      // Check if email confirmation is required
-      if (result.emailConfirmationRequired) {
-        console.log('📧 Email confirmation required - user must verify email');
-        return {
-          success: true,
-          emailConfirmationRequired: true,
-          message: 'Please check your email to confirm your account.'
-        };
-      }
-
-      // After successful registration, automatically log in
-      // Wait for trigger to create the user profile (increased to 2 seconds for reliability)
-      console.log('⏳ Waiting 2s for profile creation...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Try to login and fetch the profile
-      console.log('🔐 Attempting auto-login...');
-      const loginResult = await login(userData.email, userData.password);
-
-      if (!loginResult.success) {
-        // If auto-login fails, still return success but with a note
-        console.warn('❌ Auto-login failed after registration, but registration was successful');
-        console.log('Reason:', loginResult.error);
-        return {
-          success: true,
-          requiresManualLogin: true,
-          message: 'Registration successful. Please login.'
-        };
-      }
-
-      console.log('✅ Auto-login successful, user:', loginResult);
-      return { success: true, user: loginResult.user };
+      return { success: true };
     } catch (error) {
-      console.error('❌ Registration error:', error);
       return { success: false, error: error.message };
     }
   };

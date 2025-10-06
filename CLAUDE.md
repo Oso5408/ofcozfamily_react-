@@ -44,9 +44,26 @@ The build command executes `tools/generate-llms.js` before building, which appea
 - **Utilities**: `src/lib/` - Utility functions for email, time, and general helpers
 
 ### Authentication System
-The app uses localStorage-based authentication. Admin accounts must be created manually through the registration system and then granted admin privileges.
+The app uses **Supabase Authentication** with the following setup:
 
-Users have token-based access with 180-day validity periods.
+**Database Setup:**
+- Supabase PostgreSQL database with Row Level Security (RLS)
+- Auto-creation of user profiles via database trigger (`handle_new_user()`)
+- Complete schema in `/supabase/complete-setup.sql`
+
+**Authentication Flow:**
+- Registration: User signs up → Supabase auth → Trigger creates profile in `public.users` → Auto-login
+- Login: Email/password → Supabase auth → Fetch profile from database
+- Session: Persistent via localStorage, managed by Supabase client
+
+**Token System:**
+- Users have token-based access with 180-day validity periods
+- Tokens tracked in `users.tokens` field
+- Token history stored in `token_history` table
+
+**Admin Access:**
+- Admin status controlled by `users.is_admin` boolean
+- Must be manually granted via SQL update in Supabase dashboard
 
 ### Routing
 All routes use HashRouter for client-side routing:
@@ -71,6 +88,73 @@ Uses Tailwind CSS with a custom design system featuring:
 - Responsive design patterns
 
 ### Data Management
-- User data stored in localStorage under `ofcoz_*` keys
+- User data stored in Supabase PostgreSQL database
+- Authentication state managed by Supabase (persisted to localStorage automatically)
 - Shopping cart persisted to localStorage
 - Bilingual content managed through structured translation files
+
+## Known Issues & Solutions
+
+### Registration Page Issues
+
+**Issue: Registration gets stuck at "Registering..." (註冊中...)**
+
+**Root Cause:**
+After successful Supabase auth signup, the auto-login step may fail if:
+1. Database trigger hasn't created the user profile yet (timing issue)
+2. Network delay between auth creation and profile query
+3. RLS policies preventing immediate profile access
+
+**Current Solution (`src/contexts/AuthContext.jsx`):**
+```javascript
+// Wait 1 second for trigger to create profile
+await new Promise(resolve => setTimeout(resolve, 1000));
+// Then attempt auto-login
+const loginResult = await login(userData.email, userData.password);
+```
+
+**If Problem Persists:**
+1. Increase timeout from 1000ms to 2000ms
+2. Add retry logic with exponential backoff
+3. Or skip auto-login and redirect to login page with success message
+
+**Symptoms:**
+- User created successfully in Supabase Authentication → Users
+- User profile exists in `public.users` table
+- But UI stuck on "Registering..." and never redirects
+
+**Quick Fix:**
+User can manually go to login page and sign in with their new credentials.
+
+**Long-term Fix:**
+Consider using Supabase's `onAuthStateChange` listener to detect successful signup instead of manual login.
+
+### Password Validation Requirements
+
+**Important:** Password validation has TWO levels:
+
+1. **Minimum Requirements (for submission):**
+   - 8+ characters
+   - Uppercase letter
+   - Lowercase letter
+   - Number
+   - Special characters are OPTIONAL
+
+2. **Strength Indicator (visual only):**
+   - Shows 5 levels: Very Weak → Very Strong
+   - Encourages strong passwords but doesn't block submission
+   - "Fair" or "Strong" passwords are acceptable for registration
+
+**Bug History:**
+- ❌ Previous version: Required "Very Strong" (all 5 criteria) - too strict
+- ✅ Current version: Only requires minimum 4 criteria - special chars optional
+
+### Dashboard Access
+
+**Protected Routes:**
+- `/dashboard` - Requires authenticated user
+- `/admin` - Requires authenticated user with `is_admin: true`
+
+**If user not logged in:**
+- Should redirect to `/login` with `returnUrl` parameter
+- After login, redirect back to intended page

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
@@ -12,18 +12,29 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, LogIn } from 'lucide-react';
+import { ArrowLeft, LogIn, Mail, AlertCircle } from 'lucide-react';
+import { ResendConfirmationEmail } from '@/components/ResendConfirmationEmail';
 
 export const LoginPage = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmailConfirmNotice, setShowEmailConfirmNotice] = useState(false);
   const { login } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Check if user just registered and needs to confirm email
+    const emailSent = searchParams.get('emailSent');
+    if (emailSent === 'true') {
+      setShowEmailConfirmNotice(true);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -78,6 +89,25 @@ export const LoginPage = () => {
                 {language === 'zh' ? '登入您的Ofcoz Family帳戶' : 'Sign in to your Ofcoz Family account'}
               </p>
             </div>
+
+            {showEmailConfirmNotice && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900 mb-1">
+                      {language === 'zh' ? '請確認您的電郵' : 'Please Confirm Your Email'}
+                    </h3>
+                    <p className="text-sm text-blue-700 mb-3">
+                      {language === 'zh'
+                        ? '我們已向您的電郵地址發送確認連結。請檢查您的收件箱並點擊連結以啟用您的帳戶。'
+                        : 'We sent a confirmation link to your email address. Please check your inbox and click the link to activate your account.'}
+                    </p>
+                    <ResendConfirmationEmail email={email} />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
