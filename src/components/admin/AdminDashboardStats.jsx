@@ -16,13 +16,8 @@ export const AdminDashboardStats = ({ bookings, users, setFilterStatus, rooms, o
   const safeUsers = users || [];
 
   const handleToggle = (roomId, isHidden) => {
-    onToggleRoomVisibility(roomId, !isHidden);
-    toast({
-      title: language === 'zh' ? '房間狀態已更新' : 'Room Status Updated',
-      description: language === 'zh' 
-        ? `房間已${!isHidden ? '隱藏' : '公開'}`
-        : `The room is now ${!isHidden ? 'hidden' : 'visible'}`
-    });
+    // Pass the current hidden state, let the parent handle the toggle
+    onToggleRoomVisibility(roomId, isHidden);
   };
 
   const stats = [
@@ -41,7 +36,14 @@ export const AdminDashboardStats = ({ bookings, users, setFilterStatus, rooms, o
       filter: 'confirmed'
     },
     {
-      title: language === 'zh' ? '待確認預約' : 'Pending',
+      title: language === 'zh' ? '待確認預約' : 'To Be Confirmed',
+      value: safeBookings.filter(b => b.status === 'to_be_confirmed').length,
+      icon: Clock,
+      color: 'from-blue-400 to-blue-500',
+      filter: 'to_be_confirmed'
+    },
+    {
+      title: language === 'zh' ? '待付款預約' : 'Awaiting Payment',
       value: safeBookings.filter(b => b.status === 'pending').length,
       icon: Clock,
       color: 'from-amber-400 to-orange-500',

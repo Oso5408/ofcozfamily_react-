@@ -20,7 +20,7 @@ const BookingDetailsModal = ({ isOpen, onOpenChange, booking, t, language }) => 
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{t.rooms.roomNames[booking.room.name]}</DialogTitle>
+                    <DialogTitle>{booking.room?.name ? t.rooms.roomNames[booking.room.name] : 'Unknown Room'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-2 text-amber-700">
                     <p className="flex items-center"><Hash className="w-4 h-4 mr-2" /><strong>{t.email.bookingConfirmed.bookingId}:</strong> {booking.receiptNumber}</p>
@@ -35,6 +35,52 @@ const BookingDetailsModal = ({ isOpen, onOpenChange, booking, t, language }) => 
 };
 
 
+// Helper function to normalize booking data
+const normalizeBooking = (booking) => {
+    // Extract date string directly from ISO timestamp to avoid timezone issues
+    const extractDate = (isoString) => {
+      if (!isoString) return '';
+      // Extract YYYY-MM-DD directly from ISO string before any timezone conversion
+      const dateStr = isoString.split('T')[0];
+      return dateStr;
+    };
+
+    // Extract time from ISO timestamp (HH:MM format)
+    const extractTime = (isoString) => {
+      if (!isoString) return '';
+      // If it's already in time format (HH:MM), return as is
+      if (/^\d{2}:\d{2}$/.test(isoString)) return isoString;
+      // Otherwise extract from ISO timestamp
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+
+    // Parse notes JSON if available
+    let notes = {};
+    try {
+      notes = booking.notes ? JSON.parse(booking.notes) : {};
+    } catch (e) {
+      console.error('Failed to parse booking notes:', e);
+    }
+
+    const normalized = {
+      ...booking,
+      room: booking.rooms || booking.room,
+      date: extractDate(booking.start_time) || booking.date,
+      startTime: extractTime(booking.start_time || booking.startTime),
+      endTime: extractTime(booking.end_time || booking.endTime),
+      createdAt: booking.created_at || booking.createdAt,
+      // Map receipt number
+      receiptNumber: booking.receipt_number || booking.receiptNumber,
+      // Extract details from notes
+      name: notes.name || '',
+      purpose: notes.purpose || '',
+      specialRequests: notes.specialRequests || '',
+    };
+
+    return normalized;
+};
+
 export const BookingCalendar = ({ bookings }) => {
     const { language } = useLanguage();
     const t = translations[language];
@@ -44,7 +90,8 @@ export const BookingCalendar = ({ bookings }) => {
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const safeBookings = bookings || [];
+    // Normalize bookings to handle both Supabase and localStorage formats
+    const safeBookings = (bookings || []).map(normalizeBooking);
 
     const daysOfWeek = language === 'zh' 
         ? ['日', '一', '二', '三', '四', '五', '六']
@@ -108,7 +155,11 @@ export const BookingCalendar = ({ bookings }) => {
         while (day <= endDate) {
             for (let i = 0; i < 7; i++) {
                 const cloneDay = new Date(day);
-                const dayString = cloneDay.toISOString().split('T')[0];
+                // Format date as YYYY-MM-DD without timezone conversion
+                const year = cloneDay.getFullYear();
+                const month = String(cloneDay.getMonth() + 1).padStart(2, '0');
+                const dayNum = String(cloneDay.getDate()).padStart(2, '0');
+                const dayString = `${year}-${month}-${dayNum}`;
                 const dayBookings = safeBookings.filter(b => b.date === dayString);
 
                 days.push(
@@ -125,12 +176,18 @@ export const BookingCalendar = ({ bookings }) => {
                         <span className="font-medium self-end">{cloneDay.getDate()}</span>
                         <div className="flex-grow overflow-y-auto text-xs space-y-1 mt-1">
                            {dayBookings.slice(0, 3).map(booking => (
-                               <div key={booking.id} 
-                                    className={`p-1 rounded truncate ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
+                               <div key={booking.id}
+                                    className={`p-1 rounded truncate ${
+                                      booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                      booking.status === 'to_be_confirmed' ? 'bg-blue-100 text-blue-800' :
+                                      booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      booking.status === 'rescheduled' ? 'bg-purple-100 text-purple-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}
                                     onClick={(e) => { e.stopPropagation(); handleBookingClick(booking); }}
                                >
-                                   <p className="font-semibold">{t.rooms.roomNames[booking.room.name]}</p>
-                                   <p>{booking.startTime}-{booking.endTime}</p>
+                                   <p className="font-semibold">{booking.room?.name ? t.rooms.roomNames[booking.room.name] : 'Unknown'}</p>
+                                   <p>{booking.startTime || ''}</p>
                                </div>
                            ))}
                            {dayBookings.length > 3 && (
@@ -147,8 +204,16 @@ export const BookingCalendar = ({ bookings }) => {
         return <div className="border-t border-l border-amber-100">{rows}</div>;
     };
 
-    const selectedDayBookings = selectedDate 
-        ? safeBookings.filter(b => b.date === selectedDate.toISOString().split('T')[0]).sort((a, b) => a.startTime.localeCompare(b.startTime))
+    const selectedDayBookings = selectedDate
+        ? (() => {
+            // Format selected date as YYYY-MM-DD without timezone conversion
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            const selectedDateString = `${year}-${month}-${day}`;
+            return safeBookings.filter(b => b.date === selectedDateString)
+                .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        })()
         : [];
 
     return (
@@ -185,13 +250,22 @@ export const BookingCalendar = ({ bookings }) => {
                                         <div className="space-y-4">
                                             {selectedDayBookings.map(booking => (
                                                 <div key={booking.id} className="p-4 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-50" onClick={() => handleBookingClick(booking)}>
-                                                    <p className="font-bold text-amber-700">{t.rooms.roomNames[booking.room.name]}</p>
+                                                    <p className="font-bold text-amber-700">{booking.room?.name ? t.rooms.roomNames[booking.room.name] : 'Unknown Room'}</p>
                                                     <div className="text-sm text-amber-600 space-y-1 mt-1">
-                                                        <p className={`font-semibold ${booking.status === 'confirmed' ? 'text-green-600' : 'text-yellow-600'}`}>
-                                                            {t.booking.status[booking.status]}
+                                                        <p className={`font-semibold ${
+                                                          booking.status === 'confirmed' ? 'text-green-600' :
+                                                          booking.status === 'to_be_confirmed' ? 'text-blue-600' :
+                                                          booking.status === 'pending' ? 'text-yellow-600' :
+                                                          booking.status === 'cancelled' ? 'text-red-600' :
+                                                          booking.status === 'rescheduled' ? 'text-purple-600' :
+                                                          'text-gray-600'
+                                                        }`}>
+                                                            {t.booking.status[booking.status] || booking.status}
                                                         </p>
-                                                        <p className="flex items-center"><Clock className="w-4 h-4 mr-2" />{booking.startTime} - {booking.endTime}</p>
-                                                        <p className="flex items-center"><Users className="w-4 h-4 mr-2" />{booking.name}</p>
+                                                        <p className="flex items-center"><Clock className="w-4 h-4 mr-2" />
+                                                          {booking.startTime || ''} - {booking.endTime || ''}
+                                                        </p>
+                                                        <p className="flex items-center"><Users className="w-4 h-4 mr-2" />{booking.name || booking.users?.full_name || 'N/A'}</p>
                                                         {booking.receiptNumber && <p className="flex items-center"><Hash className="w-4 h-4 mr-2" />{booking.receiptNumber}</p>}
                                                     </div>
                                                 </div>

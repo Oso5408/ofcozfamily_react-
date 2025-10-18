@@ -11,6 +11,21 @@ export const bookingService = {
    */
   async createBooking(bookingData) {
     try {
+      // Double-check availability before insert to minimize race conditions
+      const availabilityCheck = await this.checkAvailability(
+        bookingData.roomId,
+        bookingData.startTime,
+        bookingData.endTime
+      );
+
+      if (!availabilityCheck.success) {
+        return { success: false, error: 'Unable to verify room availability' };
+      }
+
+      if (!availabilityCheck.available) {
+        return { success: false, error: 'This time slot has just been booked by another user', conflict: true };
+      }
+
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -22,7 +37,7 @@ export const bookingService = {
           payment_method: bookingData.paymentMethod,
           payment_status: bookingData.paymentStatus || 'pending',
           total_cost: bookingData.totalCost,
-          status: bookingData.status || 'confirmed',
+          status: bookingData.status || 'pending',
           notes: bookingData.notes,
         })
         .select()
@@ -32,9 +47,13 @@ export const bookingService = {
       return { success: true, booking: data };
     } catch (error) {
       const errorMessage = handleSupabaseError(error);
-      // Check for booking conflict
-      if (error.code === '23P01') {
-        return { success: false, error: 'This time slot is already booked' };
+      // Check for booking conflict (PostgreSQL exclusion constraint)
+      if (error.code === '23P01' || error.message?.includes('no_overlapping_bookings')) {
+        return {
+          success: false,
+          error: 'This time slot is already booked. Please select a different time.',
+          conflict: true
+        };
       }
       return { success: false, error: errorMessage };
     }
@@ -80,7 +99,7 @@ export const bookingService = {
         .from('bookings')
         .select(`
           *,
-          users (id, email, full_name),
+          users!bookings_user_id_fkey (id, email, full_name, phone),
           rooms (*)
         `)
         .order('created_at', { ascending: false });
@@ -119,7 +138,7 @@ export const bookingService = {
         .from('bookings')
         .select('*')
         .eq('room_id', roomId)
-        .neq('status', 'cancelled');
+        .not('status', 'in', '(cancelled,rescheduled)');
 
       if (options.startDate) {
         query = query.gte('start_time', options.startDate);
@@ -178,54 +197,117 @@ export const bookingService = {
   },
 
   /**
-   * Cancel booking
+   * Cancel booking with policy enforcement
    */
-  async cancelBooking(bookingId, refund = false) {
+  async cancelBooking(bookingId, userId, reason = '', policyCheck = null) {
     try {
+      console.log('🚫 Starting cancellation for booking:', bookingId);
+
+      // Fetch booking details
       const { data: booking, error: fetchError } = await supabase
         .from('bookings')
-        .select('*')
+        .select('*, rooms(*)')
         .eq('id', bookingId)
         .single();
 
       if (fetchError) throw fetchError;
 
-      // Update booking status
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          status: 'cancelled',
-          payment_status: refund ? 'refunded' : booking.payment_status
-        })
-        .eq('id', bookingId);
+      // Verify user owns this booking
+      if (booking.user_id !== userId) {
+        return { success: false, error: 'You can only cancel your own bookings' };
+      }
 
-      if (updateError) throw updateError;
+      // Check if already cancelled
+      if (booking.status === 'cancelled') {
+        return { success: false, error: 'This booking is already cancelled' };
+      }
 
-      // If refund and payment was by token, refund tokens
-      if (refund && booking.payment_method === 'token' && booking.payment_status === 'completed') {
-        const { error: refundError } = await supabase
+      const now = new Date();
+      const bookingStart = new Date(booking.start_time);
+
+      // Calculate hours before booking
+      const hoursBeforeBooking = Math.floor((bookingStart - now) / (1000 * 60 * 60));
+
+      // Cannot cancel past bookings
+      if (hoursBeforeBooking < 0) {
+        return { success: false, error: 'Cannot cancel booking after start time. No-show policy applies.' };
+      }
+
+      // Determine if token should be deducted (if not provided by policy check)
+      let shouldDeductToken = policyCheck?.shouldDeduct || false;
+      let tokenDeducted = false;
+
+      // Deduct token if required
+      if (shouldDeductToken) {
+        console.log('💰 Deducting 1 token for cancellation');
+
+        // Check if user has enough tokens
+        const { data: user, error: userError } = await supabase
           .from('users')
-          .update({
-            tokens: supabase.raw(`tokens + ${booking.total_cost}`)
-          })
-          .eq('id', booking.user_id);
+          .select('tokens')
+          .eq('id', userId)
+          .single();
 
-        if (refundError) throw refundError;
+        if (userError) throw userError;
+
+        if ((user.tokens || 0) < 1) {
+          return {
+            success: false,
+            error: 'Insufficient tokens for cancellation. You need 1 token to cancel this booking.',
+            insufficientTokens: true
+          };
+        }
+
+        // Deduct token
+        const { error: deductError } = await supabase
+          .from('users')
+          .update({ tokens: user.tokens - 1 })
+          .eq('id', userId);
+
+        if (deductError) throw deductError;
 
         // Create token history record
         await supabase
           .from('token_history')
           .insert({
-            user_id: booking.user_id,
-            change: booking.total_cost,
-            new_balance: supabase.raw('(SELECT tokens FROM users WHERE id = $1)', [booking.user_id]),
-            transaction_type: 'refund',
+            user_id: userId,
+            change: -1,
+            new_balance: user.tokens - 1,
+            transaction_type: 'cancellation_fee',
             booking_id: bookingId,
+            description: `Cancellation fee for booking (${hoursBeforeBooking}h before)`
           });
+
+        tokenDeducted = true;
       }
 
-      return { success: true };
+      // Update booking status to cancelled
+      const { data: updatedBooking, error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          cancelled_by: userId,
+          cancellation_hours_before: hoursBeforeBooking,
+          token_deducted_for_cancellation: tokenDeducted,
+          cancellation_reason: reason
+        })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      console.log('✅ Booking cancelled successfully');
+
+      return {
+        success: true,
+        booking: updatedBooking,
+        tokenDeducted,
+        hoursBeforeBooking
+      };
     } catch (error) {
+      console.error('❌ Error cancelling booking:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },
@@ -277,32 +359,55 @@ export const bookingService = {
    */
   async markAsPaid(bookingId, adminUserId, adminNotes = '') {
     try {
-      const { data, error } = await supabase
+      console.log('🔧 markAsPaid called with:', { bookingId, adminUserId, adminNotes });
+
+      // First, update the booking
+      const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({
-          payment_status: 'paid',
-          status: 'confirmed',
+          payment_status: 'completed',
+          status: 'to_be_confirmed', // Changed from 'confirmed' - payment received but booking not yet confirmed
           payment_confirmed_at: new Date().toISOString(),
           payment_confirmed_by: adminUserId,
           admin_notes: adminNotes,
         })
         .eq('id', bookingId)
+        .select();
+
+      console.log('📝 Update result:', { updateData, updateError });
+
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error('⚠️ Update succeeded but no rows affected - possible RLS issue');
+        throw new Error('Update failed - no rows affected. Check RLS policies.');
+      }
+
+      // Then fetch the updated booking with relations
+      const { data, error: fetchError } = await supabase
+        .from('bookings')
         .select(`
           *,
-          users (id, email, full_name),
+          users!bookings_user_id_fkey (id, email, full_name, phone),
           rooms (*)
         `)
+        .eq('id', bookingId)
         .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
       return { success: true, booking: data };
     } catch (error) {
+      console.error('markAsPaid error:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },
 
   /**
    * Get bookings by date range
+   * Gets all bookings that overlap with the specified date range
    */
   async getBookingsByDateRange(startDate, endDate, options = {}) {
     try {
@@ -310,11 +415,13 @@ export const bookingService = {
         .from('bookings')
         .select(`
           *,
-          users (id, email, full_name),
+          users!bookings_user_id_fkey (id, email, full_name),
           rooms (*)
         `)
-        .gte('start_time', startDate)
-        .lte('start_time', endDate)
+        // Get bookings that overlap with the date range:
+        // Booking overlaps if: booking.start_time < endDate AND booking.end_time > startDate
+        .lt('start_time', endDate)
+        .gt('end_time', startDate)
         .order('start_time', { ascending: true });
 
       if (options.status) {
@@ -329,6 +436,51 @@ export const bookingService = {
 
       if (error) throw error;
       return { success: true, bookings: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Upload receipt for a booking
+   */
+  async uploadReceiptForBooking(bookingId, receiptUrl) {
+    try {
+      const { data, error} = await supabase
+        .from('bookings')
+        .update({
+          receipt_url: receiptUrl,
+          receipt_uploaded_at: new Date().toISOString(),
+          status: 'to_be_confirmed'
+        })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, booking: data };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Get booking with receipt info
+   */
+  async getBookingWithReceipt(bookingId) {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          users!bookings_user_id_fkey (id, email, full_name, phone),
+          rooms (*)
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (error) throw error;
+      return { success: true, booking: data };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
     }

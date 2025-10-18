@@ -37,7 +37,8 @@ export const BookingPage = () => {
     agreedToTerms: false,
     bookingType: 'token',
     rentalType: 'hourly',
-    bookingMonth: ''
+    bookingMonth: '',
+    wantsProjector: false
   });
   const { toast } = useToast();
   const [showTermsDialog, setShowTermsDialog] = useState(false);
@@ -90,7 +91,12 @@ export const BookingPage = () => {
     if (!startTime || !endTime) return 0;
     const start = parseInt(startTime.split(':')[0]);
     const end = parseInt(endTime.split(':')[0]);
-    return Math.max(0, end - start);
+    const baseTokens = Math.max(0, end - start);
+
+    // Add projector fee if selected (Room C or Room E)
+    const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
+
+    return baseTokens + projectorFee;
   };
 
   const handleConfirmBooking = async (e) => {
@@ -149,6 +155,11 @@ export const BookingPage = () => {
             totalCost = selectedRoom.prices.cash.monthly;
           }
         }
+
+        // Add projector fee if selected (Room C or Room E)
+        if (bookingData.wantsProjector && (selectedRoom.id === 2 || selectedRoom.id === 4)) {
+          totalCost += 20;
+        }
       }
 
       // Build start and end time ISO strings
@@ -170,6 +181,8 @@ export const BookingPage = () => {
         purpose: purposeText,
         specialRequests: bookingData.specialRequests,
         rentalType: bookingData.rentalType,
+        wantsProjector: bookingData.wantsProjector,
+        projectorFee: bookingData.wantsProjector && (selectedRoom.id === 2 || selectedRoom.id === 4) ? 20 : 0,
       });
 
       // Create booking in Supabase
@@ -180,17 +193,23 @@ export const BookingPage = () => {
         endTime: endDateTime,
         bookingType: bookingData.rentalType, // 'hourly', 'daily', 'monthly'
         paymentMethod: bookingData.bookingType, // 'token' or 'cash'
-        paymentStatus: bookingData.bookingType === 'cash' ? 'pending' : 'paid',
+        paymentStatus: bookingData.bookingType === 'cash' ? 'pending' : 'completed',
         totalCost: totalCost,
-        status: bookingData.bookingType === 'cash' ? 'pending_payment' : 'confirmed',
+        status: 'pending', // All new bookings start as pending
         notes: notes,
       });
 
       if (!result.success) {
+        // Show specific error message for booking conflicts
+        const title = result.conflict
+          ? (language === 'zh' ? '時段已被預訂' : 'Time Slot Unavailable')
+          : (language === 'zh' ? '預約失敗' : 'Booking Failed');
+
         toast({
-          title: language === 'zh' ? '預約失敗' : 'Booking Failed',
+          title: title,
           description: result.error,
-          variant: "destructive"
+          variant: "destructive",
+          duration: 5000
         });
         return;
       }
@@ -210,13 +229,15 @@ export const BookingPage = () => {
         toast({
           title: language === 'zh' ? '預約已提交' : 'Booking Submitted',
           description: language === 'zh'
-            ? `您的${roomName}預約已提交。請到現場付款。管理員確認付款後，您的預約將被確認。`
-            : `Your ${roomName} booking has been submitted. Please pay at the venue. Your booking will be confirmed once the admin verifies payment.`
+            ? `您的${roomName}預約已提交。${t.booking.receipt.uploadReminder}`
+            : `Your ${roomName} booking has been submitted. ${t.booking.receipt.uploadReminder}`,
+          duration: 8000,
         });
       } else {
         toast({
           title: t.booking.confirmed,
-          description: `${t.booking.confirmedDesc.replace('{roomName}', roomName)}`
+          description: `${t.booking.confirmedDesc.replace('{roomName}', roomName)}`,
+          duration: 5000,
         });
       }
 

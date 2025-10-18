@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, MapPin, Users, Clock, X, Edit, Hash } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, X, Edit, Hash, Upload, FileCheck, CalendarPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { BookingModal } from '@/components/BookingModal';
+import { ReceiptUploadModal } from '@/components/ReceiptUploadModal';
+import { CancellationConfirmModal } from '@/components/CancellationConfirmModal';
+import { openGoogleCalendar } from '@/lib/calendarUtils';
 
 export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => {
   const { language } = useLanguage();
@@ -16,68 +19,23 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
   const { toast } = useToast();
   const [editingBooking, setEditingBooking] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [uploadingReceipt, setUploadingReceipt] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [cancellingBooking, setCancellingBooking] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  const handleCancelBooking = (bookingId) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (!booking) return;
+  const handleCancelClick = (booking) => {
+    setCancellingBooking(booking);
+    setShowCancelModal(true);
+  };
 
-    const bookingDateTime = new Date(`${booking.date}T${booking.startTime}:00`);
-    const now = new Date();
-    const timeDiff = bookingDateTime.getTime() - now.getTime();
-    const hoursDiff = timeDiff / (1000 * 3600);
-    
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    const userBookingsThisMonth = allBookings.filter(b => b.userId === user.id && b.status === 'cancelled' && new Date(b.createdAt).getMonth() === new Date().getMonth());
-    const cancellationWaiversUsed = userBookingsThisMonth.filter(b => b.waiverUsed).length;
-
-    let refundTokens = true;
-    let waiverUsed = false;
-
-    if (hoursDiff < 48) {
-      if(cancellationWaiversUsed < 1 && booking.bookingType === 'token') {
-          waiverUsed = true;
-          toast({
-              title: t.booking.cancellationWaiverUsed,
-          });
-      } else {
-          refundTokens = false;
-      }
-    }
-    
-    if(booking.bookingType === 'cash') {
-        toast({
-            title: language === 'zh' ? '現金預約取消' : 'Cash Booking Cancellation',
-            description: language === 'zh' ? '時租及日租付款後取消，不獲退款，請於取消日起計90日有效期內重新預約。' : 'Hourly and daily rentals are non-refundable after cancellation. Please rebook within 90 days from the cancellation date.'
-        });
-        refundTokens = false;
-    }
-
-    const updatedBookings = allBookings.map(b => 
-      b.id === bookingId ? { ...b, status: 'cancelled', waiverUsed: waiverUsed } : b
-    );
-    localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookings));
-    
-    setBookings(prev => prev.map(b => 
-      b.id === bookingId ? { ...b, status: 'cancelled' } : b
+  const handleCancelSuccess = (updatedBooking) => {
+    // Update bookings list with cancelled status
+    setBookings(prev => prev.map(b =>
+      b.id === updatedBooking.id ? { ...b, status: 'cancelled', cancelled_at: updatedBooking.cancelled_at } : b
     ));
-
-    if (booking.userId && booking.tokensUsed > 0 && refundTokens) {
-      const allUsers = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-      const userToRefund = allUsers.find(u => u.id === booking.userId);
-      if (userToRefund) {
-          const newTokens = (userToRefund.tokens || 0) + booking.tokensUsed;
-          updateUserTokens(booking.userId, newTokens, false);
-          toast({
-              title: t.booking.tokensRefunded,
-              description: t.booking.tokensRefundedDesc.replace('{count}', booking.tokensUsed)
-          });
-      }
-    }
-
-    toast({
-      title: t.booking.cancelSuccess,
-      description: t.booking.cancelSuccessDesc
-    });
+    setShowCancelModal(false);
+    setCancellingBooking(null);
   };
 
   const handleEditClick = (booking) => {
@@ -100,6 +58,37 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
       const bookingStart = new Date(`${booking.date}T${booking.startTime}:00`);
       const hoursDiff = (bookingStart.getTime() - now.getTime()) / (1000 * 3600);
       return hoursDiff >= 24;
+  };
+
+  const handleUploadReceiptClick = (booking) => {
+    setUploadingReceipt(booking);
+    setShowReceiptModal(true);
+  };
+
+  const handleAddToCalendar = (booking) => {
+    try {
+      openGoogleCalendar(booking, language, t);
+      toast({
+        title: t.booking.calendar.addSuccess,
+        description: t.booking.calendar.addSuccessDesc,
+      });
+    } catch (error) {
+      console.error('Failed to open Google Calendar:', error);
+      toast({
+        title: t.booking.calendar.addError,
+        description: t.booking.calendar.addErrorDesc,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReceiptUploadSuccess = (updatedBooking) => {
+    // Update bookings list with new status
+    setBookings(prev => prev.map(b =>
+      b.id === updatedBooking.id ? { ...b, ...updatedBooking, status: 'to_be_confirmed', receipt_url: updatedBooking.receipt_url } : b
+    ));
+    setShowReceiptModal(false);
+    setUploadingReceipt(null);
   };
 
   const getStatusText = (status) => {
@@ -164,18 +153,45 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                     </div>
                   )}
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                    booking.status === 'to_be_confirmed' ? 'bg-blue-100 text-blue-800' :
                     booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                    booking.status === 'modified' ? 'bg-purple-100 text-purple-800' :
-                    booking.status === 'paid' ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
+                    booking.status === 'rescheduled' ? 'bg-purple-100 text-purple-800' :
+                    booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {getStatusText(booking.status)}
                   </span>
-                  {booking.status === 'confirmed' && canModify(booking) && (
+                  {booking.receipt_url && (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 flex items-center">
+                      <FileCheck className="w-3 h-3 mr-1" />
+                      {t.booking.receipt.receiptUploaded}
+                    </span>
+                  )}
+                  {booking.status === 'pending' && !booking.receipt_url && (
+                    <Button
+                      onClick={() => handleUploadReceiptClick(booking)}
+                      size="sm"
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                    >
+                      <Upload className="w-4 h-4 mr-1" />
+                      {t.booking.receipt.upload}
+                    </Button>
+                  )}
+                  {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed' || booking.status === 'pending') && canModify(booking) && (
                     <>
+                      {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed') && (
+                        <Button
+                          onClick={() => handleAddToCalendar(booking)}
+                          size="sm"
+                          className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                        >
+                          <CalendarPlus className="w-4 h-4 mr-1" />
+                          {t.booking.calendar.addToCalendar}
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleEditClick(booking)}
                         variant="outline"
@@ -186,7 +202,7 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                         {t.dashboard.editBooking}
                       </Button>
                       <Button
-                        onClick={() => handleCancelBooking(booking.id)}
+                        onClick={() => handleCancelClick(booking)}
                         variant="outline"
                         size="sm"
                         className="border-red-300 text-red-700 hover:bg-red-50"
@@ -258,6 +274,29 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
             onSubmit={handleSaveEdit}
             isEditing={true}
           />
+      )}
+      {showReceiptModal && uploadingReceipt && (
+        <ReceiptUploadModal
+          isOpen={showReceiptModal}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setUploadingReceipt(null);
+          }}
+          booking={uploadingReceipt}
+          onUploadSuccess={handleReceiptUploadSuccess}
+        />
+      )}
+
+      {showCancelModal && cancellingBooking && (
+        <CancellationConfirmModal
+          isOpen={showCancelModal}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancellingBooking(null);
+          }}
+          booking={cancellingBooking}
+          onCancelSuccess={handleCancelSuccess}
+        />
       )}
     </div>
   );

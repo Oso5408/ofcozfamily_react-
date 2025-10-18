@@ -13,10 +13,11 @@ import { BookingsTab } from '@/components/dashboard/BookingsTab';
 import { ReviewsTab } from '@/components/dashboard/ReviewsTab';
 import { FavoritesTab } from '@/components/dashboard/FavoritesTab';
 import { TokenHistoryTab } from '@/components/dashboard/TokenHistoryTab';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  Star, 
+import { bookingService } from '@/services';
+import {
+  ArrowLeft,
+  Calendar,
+  Star,
   Heart,
   Package
 } from 'lucide-react';
@@ -41,29 +42,88 @@ export const DashboardPage = () => {
       return;
     }
 
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    const userBookings = allBookings.filter(booking => booking.userId === user.id);
-    setBookings(userBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    // Load bookings from Supabase
+    const loadBookings = async () => {
+      const result = await bookingService.getUserBookings(user.id);
+      if (result.success) {
+        // Transform Supabase bookings to component format
+        const transformedBookings = result.bookings.map(booking => {
+          // Parse notes JSON if it exists
+          let notes = {};
+          try {
+            notes = booking.notes ? JSON.parse(booking.notes) : {};
+          } catch (e) {
+            console.error('Failed to parse booking notes:', e);
+          }
 
+          return {
+            ...booking,
+            // Keep Supabase fields
+            userId: booking.user_id,
+            roomId: booking.room_id,
+            // Extract date and time from ISO timestamps
+            date: new Date(booking.start_time).toISOString().split('T')[0],
+            startTime: new Date(booking.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            endTime: new Date(booking.end_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            createdAt: booking.created_at,
+            // Map receipt number
+            receiptNumber: booking.receipt_number,
+            // Extract data from notes
+            name: notes.name || '',
+            email: notes.email || '',
+            phone: notes.phone || '',
+            guests: notes.guests || 1,
+            purpose: notes.purpose || '',
+            specialRequests: notes.specialRequests || '',
+            bookingType: booking.payment_method, // 'token' or 'cash'
+            tokensUsed: booking.payment_method === 'token' ? booking.total_cost : 0,
+            // Map room data
+            room: booking.rooms || booking.room,
+          };
+        });
+
+        setBookings(transformedBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+
+        // Check for completed bookings needing reviews
+        const completedBookings = transformedBookings.filter(b =>
+          b.status === 'confirmed' && new Date(b.end_time) < new Date()
+        );
+
+        const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
+        const userReviews = allReviews.filter(review => review.userId === user.id);
+        setReviews(userReviews);
+
+        const unreviewed = completedBookings.filter(b => !userReviews.some(r => r.bookingId === b.id));
+        if (unreviewed.length > 0 && !reviewToastShown.current) {
+          toast({
+            title: t.dashboard.reviewReminderTitle,
+            description: t.dashboard.reviewReminderDesc.replace('{count}', unreviewed.length),
+            action: <ToastAction altText={t.dashboard.reviewNow} onClick={() => setActiveTab('reviews')}>{t.dashboard.reviewNow}</ToastAction>,
+          });
+          reviewToastShown.current = true;
+        }
+      } else {
+        console.error('Failed to load bookings:', result.error);
+        toast({
+          title: language === 'zh' ? '載入失敗' : 'Loading Failed',
+          description: language === 'zh' ? '無法載入預約記錄' : 'Failed to load bookings',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    loadBookings();
+
+    // Load reviews from localStorage (still legacy)
     const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
     const userReviews = allReviews.filter(review => review.userId === user.id);
     setReviews(userReviews);
 
+    // Load favorites from localStorage (still legacy)
     const userFavorites = JSON.parse(localStorage.getItem(`ofcoz_favorites_${user.id}`) || '[]');
     setFavorites(userFavorites);
 
-    const completedBookings = userBookings.filter(b => b.status === 'confirmed' && new Date(`${b.date}T${b.endTime}:00`) < new Date());
-    const unreviewed = completedBookings.filter(b => !userReviews.some(r => r.bookingId === b.id));
-    if (unreviewed.length > 0 && !reviewToastShown.current) {
-        toast({
-            title: t.dashboard.reviewReminderTitle,
-            description: t.dashboard.reviewReminderDesc.replace('{count}', unreviewed.length),
-            action: <ToastAction altText={t.dashboard.reviewNow} onClick={() => setActiveTab('reviews')}>{t.dashboard.reviewNow}</ToastAction>,
-        });
-        reviewToastShown.current = true;
-    }
-
-  }, [user, navigate, toast, t]);
+  }, [user, navigate, toast, t, language]);
 
   const handleAddReview = (newReview) => {
     const booking = bookings.find(b => b.id === newReview.bookingId);

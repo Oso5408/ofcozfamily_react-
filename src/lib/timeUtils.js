@@ -1,68 +1,149 @@
-export const generateTimeOptions = (date, roomId, bookingIdToExclude = null) => {
+import { bookingService } from '@/services';
+
+/**
+ * Generate available time options for a given date and room
+ * Now fetches from Supabase instead of localStorage
+ */
+export const generateTimeOptions = async (date, roomId, bookingIdToExclude = null) => {
   if (!date) return [];
-  const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-  
-  let relevantBookings = allBookings.filter(booking => {
-    const isSameDate = booking.date === date;
-    const isConfirmed = booking.status === 'confirmed';
-    const isNotExcluded = booking.id !== bookingIdToExclude;
 
-    if (!isSameDate || !isConfirmed || !isNotExcluded) return false;
+  try {
+    // Fetch bookings from Supabase for this specific date and room
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
 
-    // Room B and C are linked and cannot be booked at the same time
-    if (roomId === 1 || roomId === 2) {
-      return booking.room.id === 1 || booking.room.id === 2;
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const result = await bookingService.getBookingsByDateRange(
+      startOfDay.toISOString(),
+      endOfDay.toISOString(),
+      { roomId } // This will be handled in the filter below for linked rooms
+    );
+
+    if (!result.success) {
+      console.error('Failed to fetch bookings:', result.error);
+      return generateAllTimeOptions(); // Return all times if fetch fails
     }
-    
-    // For other rooms, only check bookings for that specific room
-    return booking.room.id === roomId;
-  });
 
-  const bookedSlots = relevantBookings.map(b => ({
-      start: new Date(`${b.date}T${b.startTime}:00`),
-      end: new Date(`${b.date}T${b.endTime}:00`),
-  }));
+    const allBookings = result.bookings || [];
 
+    // Filter relevant bookings
+    let relevantBookings = allBookings.filter(booking => {
+      const bookingDate = new Date(booking.start_time).toISOString().split('T')[0];
+      const isSameDate = bookingDate === date;
+      const isConfirmed = booking.status !== 'cancelled';
+      const isNotExcluded = booking.id !== bookingIdToExclude;
+
+      if (!isSameDate || !isConfirmed || !isNotExcluded) return false;
+
+      // Room B (id=1) and Room C (id=2) are linked and cannot be booked at the same time
+      if (roomId === 1 || roomId === 2) {
+        return booking.room_id === 1 || booking.room_id === 2;
+      }
+
+      // For other rooms, only check bookings for that specific room
+      return booking.room_id === roomId;
+    });
+
+    const bookedSlots = relevantBookings.map(b => ({
+        start: new Date(b.start_time),
+        end: new Date(b.end_time),
+    }));
+
+    const options = [];
+    for (let hour = 10; hour <= 22; hour++) {
+        const time = `${hour.toString().padStart(2, '0')}:00`;
+        const checkTime = new Date(`${date}T${time}:00`);
+
+        let isBooked = false;
+        for (const slot of bookedSlots) {
+            if (checkTime >= slot.start && checkTime < slot.end) {
+                isBooked = true;
+                break;
+            }
+        }
+
+        if (!isBooked) {
+            options.push(time);
+        }
+    }
+    return options;
+  } catch (error) {
+    console.error('Error generating time options:', error);
+    return generateAllTimeOptions(); // Return all times if error occurs
+  }
+};
+
+// Helper function to generate all time options (fallback)
+const generateAllTimeOptions = () => {
   const options = [];
   for (let hour = 10; hour <= 22; hour++) {
-      const time = `${hour.toString().padStart(2, '0')}:00`;
-      const checkTime = new Date(`${date}T${time}:00`);
-
-      let isBooked = false;
-      for (const slot of bookedSlots) {
-          if (checkTime >= slot.start && checkTime < slot.end) {
-              isBooked = true;
-              break;
-          }
-      }
-      
-      if (!isBooked) {
-          options.push(time);
-      }
+    options.push(`${hour.toString().padStart(2, '0')}:00`);
   }
   return options;
 };
 
-export const checkDailySlotConflict = (roomId, date, slot) => {
+/**
+ * Check if a daily slot conflicts with existing bookings
+ * Now fetches from Supabase instead of localStorage
+ */
+export const checkDailySlotConflict = async (roomId, date, slot) => {
     if (!date || !slot) return false;
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    const [slotStartStr, slotEndStr] = slot.split('-');
-    const slotStartTime = new Date(`${date}T${slotStartStr}:00`);
-    const slotEndTime = new Date(`${date}T${slotEndStr}:00`);
 
-    const roomBookings = allBookings.filter(b => 
-        b.date === date && 
-        b.status === 'confirmed' &&
-        (b.room.id === roomId || ((roomId === 1 || roomId === 2) && (b.room.id === 1 || b.room.id === 2)))
-    );
+    try {
+        const [slotStartStr, slotEndStr] = slot.split('-');
+        const slotStartTime = new Date(`${date}T${slotStartStr}:00`);
+        const slotEndTime = new Date(`${date}T${slotEndStr}:00`);
 
-    for (const booking of roomBookings) {
-        const bookingStartTime = new Date(`${date}T${booking.startTime}:00`);
-        const bookingEndTime = new Date(`${date}T${booking.endTime}:00`);
-        // Check for any overlap
-        if (slotStartTime < bookingEndTime && slotEndTime > bookingStartTime) {
-            return true; 
+        // Fetch bookings from Supabase for this date
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const result = await bookingService.getBookingsByDateRange(
+            startOfDay.toISOString(),
+            endOfDay.toISOString()
+        );
+
+        if (!result.success) {
+            console.error('Failed to fetch bookings for conflict check:', result.error);
+            return false; // Assume no conflict if fetch fails
         }
+
+        const allBookings = result.bookings || [];
+
+        // Filter room bookings
+        const roomBookings = allBookings.filter(b => {
+            const bookingDate = new Date(b.start_time).toISOString().split('T')[0];
+            const isSameDate = bookingDate === date;
+            const isConfirmed = b.status !== 'cancelled';
+
+            if (!isSameDate || !isConfirmed) return false;
+
+            // Room B (id=1) and Room C (id=2) are linked
+            if (roomId === 1 || roomId === 2) {
+                return b.room_id === 1 || b.room_id === 2;
+            }
+
+            return b.room_id === roomId;
+        });
+
+        // Check for overlaps
+        for (const booking of roomBookings) {
+            const bookingStartTime = new Date(booking.start_time);
+            const bookingEndTime = new Date(booking.end_time);
+
+            // Check for any overlap
+            if (slotStartTime < bookingEndTime && slotEndTime > bookingStartTime) {
+                return true;
+            }
+        }
+        return false;
+    } catch (error) {
+        console.error('Error checking daily slot conflict:', error);
+        return false; // Assume no conflict if error occurs
     }
-    return false;
 };

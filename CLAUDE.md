@@ -158,3 +158,39 @@ Consider using Supabase's `onAuthStateChange` listener to detect successful sign
 **If user not logged in:**
 - Should redirect to `/login` with `returnUrl` parameter
 - After login, redirect back to intended page
+
+## Incomplete Features (TODO)
+
+### Daily View Function (查看日視圖)
+
+**Status:** INCOMPLETE/ABANDONED - Needs to be finished
+
+**Location:**
+- Button: `src/components/admin/BookingCalendar.jsx` (line 243-244)
+- Page: `src/pages/DailyBookingsPage.jsx` (exists but not wired up)
+- Route: **MISSING** - needs to be added to `src/App.jsx`
+
+**What It Should Do:**
+The "Daily View" button in the admin calendar is supposed to show a detailed timeline view for a specific date:
+- Display all rooms side-by-side with hourly time slots (10 AM - 10 PM)
+- Visualize booking occupancy: green = available, blue = booked
+- Allow quick identification of busy vs free time slots across all rooms
+- Useful for capacity planning and identifying peak hours
+
+**Current Issues:**
+1. ❌ **Missing Route**: `/admin/daily-bookings/:date` is not defined in `App.jsx`
+2. ❌ **Not Imported**: `DailyBookingsPage` is not imported in `App.jsx`
+3. ⚠️ **Uses localStorage**: `DailyBookingsPage.jsx` line 48-52 still reads from localStorage, needs to be updated to use Supabase
+4. ⚠️ **Missing receipt number mapping**: Needs to map `receipt_number` field like other pages
+
+**When Clicked:**
+Currently, clicking "查看日視圖" tries to navigate to `/admin/daily-bookings/2025-10-10` but results in a **404 error** because the route doesn't exist.
+
+**To Complete This Feature:**
+1. Import `DailyBookingsPage` in `src/App.jsx`
+2. Add route: `<Route path="/admin/daily-bookings/:date" element={<DailyBookingsPage />} />`
+3. Update `DailyBookingsPage.jsx` to fetch bookings from Supabase instead of localStorage:
+   - Replace `localStorage.getItem('ofcoz_bookings')` with `bookingService.getAllBookings()`
+   - Filter by date and normalize data similar to AdminBookingsTab
+   - Map `receipt_number` to `receiptNumber`
+4. Test the timeline visualization works correctly

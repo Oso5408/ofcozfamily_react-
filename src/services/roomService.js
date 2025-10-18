@@ -134,6 +134,8 @@ export const roomService = {
    */
   async toggleRoomVisibility(roomId, hidden) {
     try {
+      console.log('🔧 toggleRoomVisibility called:', { roomId, hidden });
+
       const { data, error } = await supabase
         .from('rooms')
         .update({ hidden })
@@ -141,9 +143,22 @@ export const roomService = {
         .select()
         .single();
 
-      if (error) throw error;
+      console.log('📝 Supabase update result:', { data, error });
+
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        console.error('⚠️ No data returned - possible RLS issue');
+        throw new Error('Update failed - no data returned. Check RLS policies.');
+      }
+
+      console.log('✅ Room updated successfully:', data);
       return { success: true, room: data };
     } catch (error) {
+      console.error('❌ toggleRoomVisibility error:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },
