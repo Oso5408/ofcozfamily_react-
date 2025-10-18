@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/data/translations';
 import { roomsData } from '@/data/roomsData';
 import { useNavigate } from 'react-router-dom';
+import { roomService } from '@/services/roomService';
 
 const RoomCard = ({ room, index, t }) => {
   const [reviews, setReviews] = useState([]);
@@ -105,17 +106,53 @@ export const RoomsSection = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
   const t = translations[language];
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const visibleRooms = roomsData
-    .filter(room => !room.hidden || (user && user.isAdmin));
-  
+  // Fetch rooms from Supabase
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        // Fetch rooms based on whether user is admin
+        const result = await roomService.getRooms(user?.isAdmin || user?.is_admin);
+
+        if (result.success) {
+          setRooms(result.rooms);
+        } else {
+          console.warn('⚠️ Failed to load rooms from Supabase, using local data');
+          setRooms(roomsData);
+        }
+      } catch (error) {
+        console.error('❌ Error loading rooms:', error);
+        setRooms(roomsData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, [user]);
+
+  const visibleRooms = rooms
+    .filter(room => !room.hidden || (user && (user.isAdmin || user.is_admin)));
+
   const cashRooms = visibleRooms
-    .filter(room => room.bookingOptions.includes('cash'))
-    .sort((a,b) => a.id - b.id);
+    .filter(room => room.booking_options?.includes('cash') || room.bookingOptions?.includes('cash'))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const tokenRooms = visibleRooms
-    .filter(room => room.bookingOptions.includes('token'))
+    .filter(room => room.booking_options?.includes('token') || room.bookingOptions?.includes('token'))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (loading) {
+    return (
+      <section id="rooms" className="py-16 px-4">
+        <div className="container mx-auto text-center">
+          <p className="text-amber-700">{language === 'zh' ? '載入中...' : 'Loading...'}</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="rooms" className="py-16 px-4">

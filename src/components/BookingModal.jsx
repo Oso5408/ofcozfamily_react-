@@ -34,16 +34,25 @@ export const BookingModal = ({
   const { user } = useAuth();
   const t = translations[language];
   const [showOtherPurposeInput, setShowOtherPurposeInput] = useState(false);
+  const [timeOptions, setTimeOptions] = useState([]);
+  const [availableDailySlots, setAvailableDailySlots] = useState([]);
+  const [loadingTimes, setLoadingTimes] = useState(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
+  const dailyTimeSlots = [
+    { value: "10:00-20:00", label: "10:00 - 20:00" },
+    { value: "11:00-21:00", label: "11:00 - 21:00" },
+    { value: "12:00-22:00", label: "12:00 - 22:00" },
+  ];
+
   useEffect(() => {
     if (user) {
-      setBookingData(prev => ({ 
-        ...prev, 
-        name: user.name || '', 
+      setBookingData(prev => ({
+        ...prev,
+        name: user.name || '',
         email: user.email || '',
-        phone: user.phone || '' 
+        phone: user.phone || ''
       }));
     }
   }, [user, isOpen, setBookingData]);
@@ -53,6 +62,40 @@ export const BookingModal = ({
       setShowOtherPurposeInput(bookingData.purpose.includes("其他"));
     }
   }, [bookingData.purpose]);
+
+  // Fetch available time slots when date or room changes
+  useEffect(() => {
+    const fetchTimeOptions = async () => {
+      if (!bookingData.date || !selectedRoom?.id) {
+        setTimeOptions([]);
+        setAvailableDailySlots([]);
+        return;
+      }
+
+      setLoadingTimes(true);
+      try {
+        // Fetch hourly time options
+        const options = await generateTimeOptions(bookingData.date, selectedRoom.id);
+        setTimeOptions(options);
+
+        // Check daily slots availability
+        const availableSlots = [];
+        for (const slot of dailyTimeSlots) {
+          const hasConflict = await checkDailySlotConflict(selectedRoom.id, bookingData.date, slot.value);
+          if (!hasConflict) {
+            availableSlots.push(slot);
+          }
+        }
+        setAvailableDailySlots(availableSlots);
+      } catch (error) {
+        console.error('Error fetching time options:', error);
+      } finally {
+        setLoadingTimes(false);
+      }
+    };
+
+    fetchTimeOptions();
+  }, [bookingData.date, selectedRoom?.id]);
 
   const handlePurposeChange = (purpose, checked) => {
     const currentPurposes = Array.isArray(bookingData.purpose) ? bookingData.purpose : [];
@@ -66,48 +109,42 @@ export const BookingModal = ({
          setBookingData(prev => ({...prev, otherPurpose: ''}));
       }
     }
-    
+
     setBookingData({ ...bookingData, purpose: newPurposes });
   };
-  
-  const timeOptions = generateTimeOptions(bookingData.date, selectedRoom?.id);
-
-  const dailyTimeSlots = [
-    { value: "10:00-20:00", label: "10:00 - 20:00" },
-    { value: "11:00-21:00", label: "11:00 - 21:00" },
-    { value: "12:00-22:00", label: "12:00 - 22:00" },
-  ];
-
-  const availableDailySlots = dailyTimeSlots.filter(slot => 
-    !checkDailySlotConflict(selectedRoom.id, bookingData.date, slot.value)
-  );
 
   const calculateRequiredTokens = () => {
     if (bookingData.bookingType !== 'token' || !bookingData.startTime || !bookingData.endTime) return 0;
     const start = parseInt(bookingData.startTime.split(':')[0]);
     const end = parseInt(bookingData.endTime.split(':')[0]);
-    return Math.max(0, end - start);
+    const baseTokens = Math.max(0, end - start);
+
+    // Add projector fee if selected (Room C or Room E)
+    const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
+
+    return baseTokens + projectorFee;
   };
-  
+
   const calculatePrice = () => {
     if (bookingData.bookingType !== 'cash' || !selectedRoom?.prices?.cash) return 0;
-    
+
+    let basePrice = 0;
+
     if (bookingData.rentalType === 'daily' && selectedRoom.prices.cash.daily) {
-      return selectedRoom.prices.cash.daily;
-    }
-    
-    if (bookingData.rentalType === 'hourly' && bookingData.startTime && bookingData.endTime && selectedRoom.prices.cash.hourly) {
+      basePrice = selectedRoom.prices.cash.daily;
+    } else if (bookingData.rentalType === 'hourly' && bookingData.startTime && bookingData.endTime && selectedRoom.prices.cash.hourly) {
       const start = parseInt(bookingData.startTime.split(':')[0]);
       const end = parseInt(bookingData.endTime.split(':')[0]);
       const hours = Math.max(0, end - start);
-      return hours * selectedRoom.prices.cash.hourly;
-    }
-    
-    if (bookingData.rentalType === 'monthly' && selectedRoom.prices.cash.monthly) {
-        return selectedRoom.prices.cash.monthly;
+      basePrice = hours * selectedRoom.prices.cash.hourly;
+    } else if (bookingData.rentalType === 'monthly' && selectedRoom.prices.cash.monthly) {
+      basePrice = selectedRoom.prices.cash.monthly;
     }
 
-    return 0;
+    // Add projector fee if selected (Room C or Room E)
+    const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
+
+    return basePrice + projectorFee;
   }
 
   const requiredTokens = calculateRequiredTokens();
@@ -132,7 +169,21 @@ export const BookingModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+      <DialogContent
+        className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6"
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking on Select dropdown or any Radix portaled content
+          const target = e.target;
+          if (
+            target.closest('[role="listbox"]') ||
+            target.closest('[data-radix-popper-content-wrapper]') ||
+            target.closest('[data-radix-select-content]') ||
+            target.closest('[data-radix-portal]')
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-amber-800">
             {t.booking.combinedTitle}
@@ -182,8 +233,48 @@ export const BookingModal = ({
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div><Label className="text-amber-800">{t.booking.startTime}</Label><Select value={bookingData.startTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, startTime: value, endTime: '' })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-amber-800">{t.booking.endTime}</Label><Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
+                  <div>
+                    <Label className="text-amber-800">{t.booking.startTime}</Label>
+                    <Select
+                      value={bookingData.startTime || ''}
+                      onValueChange={(value) => {
+                        console.log('🕐 Token Start Time Selected:', value);
+                        setBookingData({ ...bookingData, startTime: value, endTime: '' });
+                      }}
+                      onOpenChange={(open) => {
+                        console.log('🔓 Token Start Time Dropdown:', open ? 'OPENED' : 'CLOSED');
+                      }}
+                    >
+                      <SelectTrigger
+                        onClick={() => console.log('🖱️ Token Start Time Trigger Clicked')}
+                        disabled={!bookingData.date}
+                      >
+                        <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Please select date first')} />
+                      </SelectTrigger>
+                      <SelectContent position="popper" onCloseAutoFocus={(e) => {
+                        console.log('🎯 Token Start Time Close Auto Focus');
+                        e.preventDefault();
+                      }}>
+                        {console.log('📋 Token Time Options Available:', timeOptions.length)}
+                        {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-amber-800">{t.booking.endTime}</Label>
+                    <Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}>
+                      <SelectTrigger disabled={!bookingData.startTime}>
+                        <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
+                      </SelectTrigger>
+                      <SelectContent position="popper">
+                        {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
+                          <SelectItem key={time} value={time}>{time}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -196,12 +287,74 @@ export const BookingModal = ({
                   </TabsList>
                   <TabsContent value="hourly" className="pt-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div><Label className="text-amber-800">{t.booking.startTime}</Label><Select value={bookingData.startTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, startTime: value, endTime: '' })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
-                      <div><Label className="text-amber-800">{t.booking.endTime}</Label><Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}><SelectTrigger><SelectValue placeholder={t.booking.selectTime} /></SelectTrigger><SelectContent>{timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => <SelectItem key={time} value={time}>{time}</SelectItem>)}</SelectContent></Select></div>
+                      <div>
+                        <Label className="text-amber-800">{t.booking.startTime}</Label>
+                        <Select
+                          value={bookingData.startTime || ''}
+                          onValueChange={(value) => {
+                            console.log('🕐 Cash Start Time Selected:', value);
+                            setBookingData({ ...bookingData, startTime: value, endTime: '' });
+                          }}
+                          onOpenChange={(open) => {
+                            console.log('🔓 Cash Start Time Dropdown:', open ? 'OPENED' : 'CLOSED');
+                            console.log('📊 Current bookingData:', bookingData);
+                            console.log('📅 Selected date:', bookingData.date);
+                            console.log('⚠️ Date is:', bookingData.date ? 'SET ✅' : 'NOT SET ❌ - Please select a date first!');
+                            console.log('🏠 Selected room:', selectedRoom?.id, selectedRoom?.name);
+                          }}
+                        >
+                          <SelectTrigger
+                            onClick={() => console.log('🖱️ Cash Start Time Trigger Clicked')}
+                            disabled={!bookingData.date}
+                          >
+                            <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Please select date first')} />
+                          </SelectTrigger>
+                          <SelectContent position="popper" onCloseAutoFocus={(e) => {
+                            console.log('🎯 Cash Start Time Close Auto Focus');
+                            e.preventDefault();
+                          }}>
+                            {console.log('📋 Cash Time Options Available:', timeOptions.length, timeOptions)}
+                            {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-amber-800">{t.booking.endTime}</Label>
+                        <Select
+                          value={bookingData.endTime || ''}
+                          onValueChange={(value) => {
+                            console.log('🕐 Cash End Time Selected:', value);
+                            setBookingData({ ...bookingData, endTime: value });
+                          }}
+                        >
+                          <SelectTrigger disabled={!bookingData.startTime}>
+                            <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
+                          </SelectTrigger>
+                          <SelectContent position="popper">
+                            {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
+                              <SelectItem key={time} value={time}>{time}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </TabsContent>
                   <TabsContent value="daily" className="pt-4">
-                    <div><Label className="text-amber-800">{t.booking.timeSlot}</Label><Select value={`${bookingData.startTime}-${bookingData.endTime}`} onValueChange={(value) => { const [start, end] = value.split('-'); setBookingData({ ...bookingData, startTime: start, endTime: end }); }}><SelectTrigger><SelectValue placeholder={t.booking.selectTimeSlot} /></SelectTrigger><SelectContent>{availableDailySlots.map(slot => <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>)}</SelectContent></Select></div>
+                    <div>
+                      <Label className="text-amber-800">{t.booking.timeSlot}</Label>
+                      <Select value={`${bookingData.startTime}-${bookingData.endTime}`} onValueChange={(value) => { const [start, end] = value.split('-'); setBookingData({ ...bookingData, startTime: start, endTime: end }); }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t.booking.selectTimeSlot} />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          {availableDailySlots.map(slot => (
+                            <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </TabsContent>
                   <TabsContent value="monthly" className="pt-4">
                     <form onSubmit={handleMonthlyInquiry} className="space-y-4">
@@ -221,7 +374,30 @@ export const BookingModal = ({
             </Tabs>
 
             <div><Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label><Input id="guests" type="number" min="1" max={selectedRoom?.capacity} value={bookingData.guests} onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })} className="border-amber-200 focus:border-amber-400" /></div>
-            
+
+            {/* Projector Option for Room C and Room E */}
+            {(selectedRoom?.id === 2 || selectedRoom?.id === 4) && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start space-x-3">
+                  <Checkbox
+                    id="projector"
+                    checked={bookingData.wantsProjector}
+                    onCheckedChange={(checked) => setBookingData({ ...bookingData, wantsProjector: checked })}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="projector" className="text-blue-800 font-semibold cursor-pointer">
+                      {language === 'zh' ? '需要投影機 (+$20)' : 'Need Projector (+$20)'}
+                    </Label>
+                    <p className="text-sm text-blue-600 mt-1">
+                      {language === 'zh'
+                        ? '此房間配有投影機，如需使用請勾選此項，將額外收取 $20 費用。'
+                        : 'This room has a projector available. Check this option if you need it, additional $20 will be charged.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <Label className="text-amber-800">{t.booking.purpose}</Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">

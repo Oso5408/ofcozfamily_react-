@@ -13,6 +13,7 @@ import { roomsData } from '@/data/roomsData';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { generateReceiptNumber } from '@/lib/utils';
+import { bookingService, roomService } from '@/services';
 
 export const BookingPage = () => {
   const { roomId } = useParams();
@@ -36,7 +37,8 @@ export const BookingPage = () => {
     agreedToTerms: false,
     bookingType: 'token',
     rentalType: 'hourly',
-    bookingMonth: ''
+    bookingMonth: '',
+    wantsProjector: false
   });
   const { toast } = useToast();
   const [showTermsDialog, setShowTermsDialog] = useState(false);
@@ -65,41 +67,39 @@ export const BookingPage = () => {
     }));
   }, [roomId, navigate, user]);
 
-  const checkTimeConflict = (roomId, date, startTime, endTime) => {
+  const checkTimeConflict = async (roomId, date, startTime, endTime) => {
     if(roomId === 9) return false;
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    let roomBookings = allBookings.filter(booking => 
-      booking.room.id === roomId && 
-      booking.date === date && 
-      booking.status === 'confirmed'
+
+    const startDateTime = new Date(`${date}T${startTime}:00`).toISOString();
+    const endDateTime = new Date(`${date}T${endTime}:00`).toISOString();
+
+    const result = await bookingService.checkAvailability(
+      roomId,
+      startDateTime,
+      endDateTime
     );
 
-    const newStart = new Date(`${date}T${startTime}:00`);
-    const newEnd = new Date(`${date}T${endTime}:00`);
-
-    if (roomId === 1) { // Room B
-        const roomCBookings = allBookings.filter(b => b.room.id === 2 && b.date === date && b.status === 'confirmed');
-        roomBookings = [...roomBookings, ...roomCBookings];
-    } else if (roomId === 2) { // Room C
-        const roomBBookings = allBookings.filter(b => b.room.id === 1 && b.date === date && b.status === 'confirmed');
-        roomBookings = [...roomBookings, ...roomBBookings];
+    if (!result.success) {
+      console.error('Error checking availability:', result.error);
+      return false; // Assume available if check fails (will be caught by database constraint anyway)
     }
 
-    return roomBookings.some(booking => {
-      const existingStart = new Date(`${booking.date}T${booking.startTime}:00`);
-      const existingEnd = new Date(`${booking.date}T${booking.endTime}:00`);
-      return (newStart < existingEnd && newEnd > existingStart);
-    });
+    return !result.available; // Return true if NOT available (conflict exists)
   };
 
   const calculateRequiredTokens = (startTime, endTime) => {
     if (!startTime || !endTime) return 0;
     const start = parseInt(startTime.split(':')[0]);
     const end = parseInt(endTime.split(':')[0]);
-    return Math.max(0, end - start);
+    const baseTokens = Math.max(0, end - start);
+
+    // Add projector fee if selected (Room C or Room E)
+    const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
+
+    return baseTokens + projectorFee;
   };
 
-  const handleConfirmBooking = (e) => {
+  const handleConfirmBooking = async (e) => {
     e.preventDefault();
     if (!bookingData.name || !bookingData.email || !bookingData.phone || !bookingData.date || !bookingData.startTime || !bookingData.endTime) {
       toast({ title: t.booking.missingInfo, description: t.booking.missingDesc, variant: "destructive" });
@@ -109,55 +109,147 @@ export const BookingPage = () => {
       toast({ title: language === 'zh' ? '時間錯誤' : 'Time Error', description: language === 'zh' ? '結束時間必須晚於開始時間' : 'End time must be after start time', variant: "destructive" });
       return;
     }
-    if (checkTimeConflict(selectedRoom.id, bookingData.date, bookingData.startTime, bookingData.endTime)) {
+
+    // Check time conflict (now async)
+    const hasConflict = await checkTimeConflict(selectedRoom.id, bookingData.date, bookingData.startTime, bookingData.endTime);
+    if (hasConflict) {
       toast({ title: t.booking.timeConflict, description: t.booking.timeConflictDesc, variant: "destructive" });
       return;
     }
     setShowTermsDialog(true);
   };
 
-  const handleSubmitBooking = () => {
+  const handleSubmitBooking = async () => {
     setShowTermsDialog(false);
-    
-    let requiredTokens = 0;
-    if (bookingData.bookingType === 'token' && !user?.isAdmin) {
-      requiredTokens = calculateRequiredTokens(bookingData.startTime, bookingData.endTime);
-      if (user.tokens < requiredTokens) {
-        toast({ title: t.booking.insufficientTokens, description: t.booking.insufficientTokensDesc.replace('{required}', requiredTokens).replace('{available}', user.tokens), variant: "destructive" });
+
+    try {
+      // Calculate cost based on booking type and rental type
+      const hours = calculateRequiredTokens(bookingData.startTime, bookingData.endTime);
+      let totalCost = 0;
+      let requiredTokens = 0;
+
+      if (bookingData.bookingType === 'token') {
+        // Token booking: cost is in tokens
+        requiredTokens = hours;
+        totalCost = hours;
+
+        // Check if user has enough tokens
+        if (!user?.isAdmin && user.tokens < requiredTokens) {
+          toast({
+            title: t.booking.insufficientTokens,
+            description: t.booking.insufficientTokensDesc
+              .replace('{required}', requiredTokens)
+              .replace('{available}', user.tokens),
+            variant: "destructive"
+          });
+          return;
+        }
+      } else {
+        // Cash booking: calculate price from room data
+        if (selectedRoom.prices && selectedRoom.prices.cash) {
+          if (bookingData.rentalType === 'hourly') {
+            totalCost = selectedRoom.prices.cash.hourly * hours;
+          } else if (bookingData.rentalType === 'daily') {
+            totalCost = selectedRoom.prices.cash.daily;
+          } else if (bookingData.rentalType === 'monthly') {
+            totalCost = selectedRoom.prices.cash.monthly;
+          }
+        }
+
+        // Add projector fee if selected (Room C or Room E)
+        if (bookingData.wantsProjector && (selectedRoom.id === 2 || selectedRoom.id === 4)) {
+          totalCost += 20;
+        }
+      }
+
+      // Build start and end time ISO strings
+      const startDateTime = new Date(`${bookingData.date}T${bookingData.startTime}:00`).toISOString();
+      const endDateTime = new Date(`${bookingData.date}T${bookingData.endTime}:00`).toISOString();
+
+      // Prepare purpose text
+      let purposeText = Array.isArray(bookingData.purpose) ? bookingData.purpose.join(', ') : bookingData.purpose;
+      if (Array.isArray(bookingData.purpose) && bookingData.purpose.includes('其他') && bookingData.otherPurpose) {
+        purposeText = purposeText.replace('其他', `其他: ${bookingData.otherPurpose}`);
+      }
+
+      // Build notes field
+      const notes = JSON.stringify({
+        name: bookingData.name,
+        email: bookingData.email,
+        phone: bookingData.phone,
+        guests: bookingData.guests,
+        purpose: purposeText,
+        specialRequests: bookingData.specialRequests,
+        rentalType: bookingData.rentalType,
+        wantsProjector: bookingData.wantsProjector,
+        projectorFee: bookingData.wantsProjector && (selectedRoom.id === 2 || selectedRoom.id === 4) ? 20 : 0,
+      });
+
+      // Create booking in Supabase
+      const result = await bookingService.createBooking({
+        userId: user?.id,
+        roomId: selectedRoom.id,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        bookingType: bookingData.rentalType, // 'hourly', 'daily', 'monthly'
+        paymentMethod: bookingData.bookingType, // 'token' or 'cash'
+        paymentStatus: bookingData.bookingType === 'cash' ? 'pending' : 'completed',
+        totalCost: totalCost,
+        status: 'pending', // All new bookings start as pending
+        notes: notes,
+      });
+
+      if (!result.success) {
+        // Show specific error message for booking conflicts
+        const title = result.conflict
+          ? (language === 'zh' ? '時段已被預訂' : 'Time Slot Unavailable')
+          : (language === 'zh' ? '預約失敗' : 'Booking Failed');
+
+        toast({
+          title: title,
+          description: result.error,
+          variant: "destructive",
+          duration: 5000
+        });
         return;
       }
-      updateUserTokens(user.id, user.tokens - requiredTokens);
-      toast({ title: t.booking.tokensDeducted, description: t.booking.tokensDeductedDesc.replace('{count}', requiredTokens) });
+
+      // If token booking, deduct tokens
+      if (bookingData.bookingType === 'token' && !user?.isAdmin) {
+        await updateUserTokens(user.id, user.tokens - requiredTokens);
+        toast({
+          title: t.booking.tokensDeducted,
+          description: t.booking.tokensDeductedDesc.replace('{count}', requiredTokens)
+        });
+      }
+
+      // Show success message
+      const roomName = t.rooms.roomNames[selectedRoom.name];
+      if (bookingData.bookingType === 'cash') {
+        toast({
+          title: language === 'zh' ? '預約已提交' : 'Booking Submitted',
+          description: language === 'zh'
+            ? `您的${roomName}預約已提交。${t.booking.receipt.uploadReminder}`
+            : `Your ${roomName} booking has been submitted. ${t.booking.receipt.uploadReminder}`,
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: t.booking.confirmed,
+          description: `${t.booking.confirmedDesc.replace('{roomName}', roomName)}`,
+          duration: 5000,
+        });
+      }
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Booking error:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: language === 'zh' ? '無法建立預約，請稍後再試' : 'Could not create booking. Please try again later.',
+        variant: "destructive"
+      });
     }
-
-    let purposeText = Array.isArray(bookingData.purpose) ? bookingData.purpose.join(', ') : bookingData.purpose;
-    if (Array.isArray(bookingData.purpose) && bookingData.purpose.includes('其他') && bookingData.otherPurpose) {
-        purposeText = purposeText.replace('其他', `其他: ${bookingData.otherPurpose}`);
-    }
-
-    const booking = {
-      id: Date.now().toString(),
-      userId: user?.id || null,
-      room: selectedRoom,
-      ...bookingData,
-      purpose: purposeText,
-      tokensUsed: requiredTokens,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      receiptNumber: generateReceiptNumber()
-    };
-
-    const existingBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    existingBookings.push(booking);
-    localStorage.setItem('ofcoz_bookings', JSON.stringify(existingBookings));
-
-    const roomName = t.rooms.roomNames[selectedRoom.name];
-    toast({
-      title: t.booking.confirmed,
-      description: `${t.booking.confirmedDesc.replace('{roomName}', roomName)} ${t.booking.confirmedEmailDesc}`
-    });
-    
-    navigate('/dashboard');
   };
 
   if (!selectedRoom) {

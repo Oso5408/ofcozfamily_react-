@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { sendActivationEmail } from '@/lib/email';
+import { authService, userService } from '@/services';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext();
 
@@ -13,237 +14,251 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem('ofcoz_user');
-      const rememberMe = localStorage.getItem('ofcoz_remember_me');
-      
-      if (savedUser && rememberMe === 'true') {
-        setUser(JSON.parse(savedUser));
-      } else if (savedUser && !rememberMe) {
-        const sessionUser = sessionStorage.getItem('ofcoz_session_user');
-        if (sessionUser) {
-          setUser(JSON.parse(sessionUser));
+    // Check active session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          setUser(session.user);
+          // Fetch user profile
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          setProfile(userProfile);
         }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      } finally {
+        setIsLoading(false);
       }
-      
-      let users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-
-      // Note: Admin accounts must be created manually through registration
-      // No default credentials for security reasons
-      
-      const updatedUsers = users.map(u => {
-          if (!u.tokenValidUntil) {
-              const validUntil = new Date();
-              validUntil.setDate(validUntil.getDate() + 180);
-              return {...u, tokenValidUntil: validUntil.toISOString()};
-          }
-          return u;
-      });
-      localStorage.setItem('ofcoz_users', JSON.stringify(updatedUsers));
-    } catch (error) {
-      console.error("Failed to initialize auth state:", error);
-      localStorage.removeItem('ofcoz_user');
-      localStorage.removeItem('ofcoz_session_user');
-      localStorage.removeItem('ofcoz_remember_me');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const login = (email, password, rememberMe = false) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const loggedInUser = users.find(u => u.email === email && u.password === password);
-    
-    if (loggedInUser) {
-      const userWithoutPassword = { ...loggedInUser };
-      delete userWithoutPassword.password;
-      setUser(userWithoutPassword);
-      
-      if (rememberMe) {
-        localStorage.setItem('ofcoz_user', JSON.stringify(userWithoutPassword));
-        localStorage.setItem('ofcoz_remember_me', 'true');
-      } else {
-        sessionStorage.setItem('ofcoz_session_user', JSON.stringify(userWithoutPassword));
-        localStorage.removeItem('ofcoz_remember_me');
-        localStorage.removeItem('ofcoz_user');
-      }
-      
-      return { success: true };
-    }
-    
-    return { success: false, error: 'Invalid email or password' };
-  };
-
-  const register = (userData) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    
-    if (users.find(u => u.email === userData.email)) {
-      return { success: false, error: 'Email already exists' };
-    }
-
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 180);
-
-    const newUser = {
-      id: Date.now().toString(),
-      ...userData,
-      tokens: 0,
-      createdAt: new Date().toISOString(),
-      isAdmin: false,
-      tokenValidUntil: validUntil.toISOString(),
-      tokenHistory: [],
     };
 
-    users.push(newUser);
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
+    initializeAuth();
 
-    const userWithoutPassword = { ...newUser };
-    delete userWithoutPassword.password;
-    setUser(userWithoutPassword);
-    sessionStorage.setItem('ofcoz_session_user', JSON.stringify(userWithoutPassword));
-    
-    sendActivationEmail(newUser);
+    // Listen for auth changes
+    // IMPORTANT: Cannot use await/async Supabase calls here due to deadlock bug
+    // See: https://github.com/supabase/auth-js/issues/936
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('🔔 Auth state changed:', event);
+        console.log('📧 Session user:', session?.user?.email);
+        console.log('🆔 Session ID:', session?.user?.id);
 
-    return { success: true };
-  };
+        // Log stack trace to see what triggered SIGNED_OUT
+        if (event === 'SIGNED_OUT') {
+          console.log('🚨 SIGNED_OUT triggered! Stack trace:');
+          console.trace();
+        }
 
-  const updateUser = (updatedData) => {
-    if (!user) return;
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === user.id);
-    if (userIndex === -1) return;
-
-    const currentUser = users[userIndex];
-    const updatedUserObject = { ...currentUser, ...updatedData };
-    users[userIndex] = updatedUserObject;
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
-    
-    const userToSet = { ...updatedUserObject };
-    delete userToSet.password;
-    setUser(userToSet);
-    
-    const rememberMe = localStorage.getItem('ofcoz_remember_me');
-    if (rememberMe === 'true') {
-      localStorage.setItem('ofcoz_user', JSON.stringify(userToSet));
-    } else {
-      sessionStorage.setItem('ofcoz_session_user', JSON.stringify(userToSet));
-    }
-  };
-
-  const updateUserTokens = (userId, newTokenCount, isTopUp = false) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === userId);
-
-    if (userIndex === -1) return null;
-
-    const currentUser = users[userIndex];
-    const oldTokenCount = currentUser.tokens || 0;
-    currentUser.tokens = newTokenCount;
-
-    if (isTopUp) {
-        const validUntil = new Date();
-        validUntil.setDate(validUntil.getDate() + 180);
-        currentUser.tokenValidUntil = validUntil.toISOString();
-    }
-    
-    // Add to token history
-    if (!currentUser.tokenHistory) {
-      currentUser.tokenHistory = [];
-    }
-    const tokenChange = newTokenCount - oldTokenCount;
-    if (tokenChange !== 0) {
-      currentUser.tokenHistory.push({
-        date: new Date().toISOString(),
-        change: tokenChange,
-        newBalance: newTokenCount,
-        type: tokenChange > 0 ? 'top-up' : 'usage/deduction'
-      });
-    }
-
-    users[userIndex] = currentUser;
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
-    
-    if (user && user.id === userId) {
-      const updatedUserForState = { ...currentUser };
-       delete updatedUserForState.password;
-      setUser(updatedUserForState);
-      
-      const rememberMe = localStorage.getItem('ofcoz_remember_me');
-      if (rememberMe === 'true') {
-        localStorage.setItem('ofcoz_user', JSON.stringify(updatedUserForState));
-      } else {
-        sessionStorage.setItem('ofcoz_session_user', JSON.stringify(updatedUserForState));
+        if (session?.user) {
+          setUser(session.user);
+          // Fetch profile WITHOUT await to avoid deadlock
+          supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data: userProfile }) => {
+              console.log('👤 Profile fetched in listener:', userProfile);
+              setProfile(userProfile);
+            })
+            .catch(err => console.error('Profile fetch error in listener:', err));
+        } else {
+          console.log('⚠️ No session - clearing user and profile');
+          setUser(null);
+          setProfile(null);
+        }
       }
-    }
-    return currentUser;
-  };
+    );
 
-  const updateUserRole = (userId, isAdmin) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === userId);
-    if(userIndex === -1) return;
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
-    users[userIndex].isAdmin = isAdmin;
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
-  };
+  const register = async (userData) => {
+    try {
+      const result = await authService.signUp(
+        userData.email,
+        userData.password,
+        {
+          fullName: userData.fullName,
+          phone: userData.phone,
+        }
+      );
 
-  const changePassword = (userId, oldPassword, newPassword) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === userId);
-    
-    if (userIndex === -1) {
-      return { success: false, error: 'User not found' };
-    }
-
-    if (users[userIndex].password !== oldPassword) {
-      return { success: false, error: 'Incorrect old password' };
-    }
-
-    users[userIndex].password = newPassword;
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
-
-    return { success: true };
-  };
-  
-  const resetPassword = (email, newPassword) => {
-      const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-      const userIndex = users.findIndex(u => u.email === email);
-      if (userIndex === -1) {
-          return { success: false, error: 'User not found' };
+      if (!result.success) {
+        return { success: false, error: result.error };
       }
-      users[userIndex].password = newPassword;
-      localStorage.setItem('ofcoz_users', JSON.stringify(users));
+
+      console.log('✅ Auth user created successfully');
+
+      // Check if email confirmation is required
+      if (result.emailConfirmationRequired) {
+        console.log('📧 Email confirmation required - user must verify email');
+        return {
+          success: true,
+          emailConfirmationRequired: true,
+          message: 'Please check your email to confirm your account.'
+        };
+      }
+
+      // After successful registration, automatically log in
+      // Wait for trigger to create the user profile (increased to 2 seconds for reliability)
+      console.log('⏳ Waiting 2s for profile creation...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Try to login and fetch the profile
+      console.log('🔐 Attempting auto-login...');
+      const loginResult = await login(userData.email, userData.password);
+
+      if (!loginResult.success) {
+        // If auto-login fails, still return success but with a note
+        console.warn('❌ Auto-login failed after registration, but registration was successful');
+        console.log('Reason:', loginResult.error);
+        return {
+          success: true,
+          requiresManualLogin: true,
+          message: 'Registration successful. Please login.'
+        };
+      }
+
+      console.log('✅ Auto-login successful, user:', loginResult);
+      return { success: true, user: loginResult.user };
+    } catch (error) {
+      console.error('❌ Registration error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const login = async (email, password, rememberMe = false) => {
+    try {
+      const result = await authService.signIn(email, password);
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      setUser(result.user);
+      setProfile(result.profile);
+
       return { success: true };
-  };
-
-  const adminResetPassword = (userId, newPassword) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex === -1) {
-      return { success: false, error: 'User not found' };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
-    users[userIndex].password = newPassword;
-    localStorage.setItem('ofcoz_users', JSON.stringify(users));
-    return { success: true };
   };
 
-  const findUserByEmail = (email) => {
-    const users = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    return users.find(u => u.email === email);
+  const logout = async () => {
+    try {
+      console.log('🚪 Logout called! Stack trace:');
+      console.trace();
+      await authService.signOut();
+      setUser(null);
+      setProfile(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('ofcoz_user');
-    localStorage.removeItem('ofcoz_remember_me');
-    sessionStorage.removeItem('ofcoz_session_user');
+  const updateUser = async (updates) => {
+    if (!user) return;
+
+    try {
+      const result = await userService.updateProfile(user.id, updates);
+
+      if (result.success) {
+        setProfile(result.profile);
+      }
+
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateUserTokens = async (userId, newTokenCount, isTopUp = false) => {
+    try {
+      const result = await userService.updateTokens(userId, newTokenCount, isTopUp);
+
+      if (result.success && userId === user?.id) {
+        setProfile(result.profile);
+      }
+
+      return result.success ? result.profile : null;
+    } catch (error) {
+      console.error('Update tokens error:', error);
+      return null;
+    }
+  };
+
+  const updateUserRole = async (userId, isAdmin) => {
+    try {
+      const result = await userService.updateUserRole(userId, isAdmin);
+
+      if (result.success && userId === user?.id) {
+        setProfile(result.profile);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Update role error:', error);
+    }
+  };
+
+  const changePassword = async (userId, oldPassword, newPassword) => {
+    try {
+      // First verify old password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+
+      if (signInError) {
+        return { success: false, error: 'Incorrect old password' };
+      }
+
+      // Update to new password
+      const result = await authService.updatePassword(newPassword);
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const resetPassword = async (email, newPassword) => {
+    try {
+      const result = await authService.resetPassword(email);
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const adminResetPassword = async (userId, newPassword) => {
+    // This requires service_role key, so it should be done via backend
+    // For now, return not implemented
+    return { success: false, error: 'Admin password reset must be done via Supabase dashboard' };
+  };
+
+  const findUserByEmail = async (email) => {
+    try {
+      const result = await userService.findUserByEmail(email);
+      return result.user;
+    } catch (error) {
+      return null;
+    }
   };
 
   const value = {
-    user,
+    user: profile, // Return profile as user for compatibility
     login,
     register,
     updateUser,
@@ -254,7 +269,10 @@ export const AuthProvider = ({ children }) => {
     adminResetPassword,
     findUserByEmail,
     logout,
-    isLoading
+    isLoading,
+    // Additional Supabase-specific data
+    authUser: user,
+    profile,
   };
 
   return (

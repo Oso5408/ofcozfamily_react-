@@ -21,6 +21,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { bookingService } from '@/services/bookingService';
+import { roomService } from '@/services/roomService';
 
 export const AdminPage = () => {
   const { user, logout } = useAuth();
@@ -41,33 +43,68 @@ export const AdminPage = () => {
 
 
   useEffect(() => {
-    if (!user || !user.isAdmin) {
+    console.log('🔒 AdminPage access check:', {
+      user,
+      'user.isAdmin': user?.isAdmin,
+      'user.is_admin': user?.is_admin,
+      'will_redirect': !user || (!user.isAdmin && !user.is_admin)
+    });
+
+    if (!user || (!user.isAdmin && !user.is_admin)) {
+      console.log('⛔ Access denied - redirecting to home');
       navigate('/');
       return;
     }
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    setBookings(allBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
 
-    const allUsers = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-    setUsers(allUsers);
-    
-    const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
-    setReviews(allReviews);
-    
-    const storedRooms = JSON.parse(localStorage.getItem('ofcoz_rooms') || JSON.stringify(initialRoomsData));
-    setRooms(storedRooms);
+    // Load data from Supabase
+    const loadAdminData = async () => {
+      try {
+        // Fetch all bookings from Supabase
+        const bookingsResult = await bookingService.getAllBookings();
+        if (bookingsResult.success) {
+          const allBookings = bookingsResult.bookings;
+          console.log('📚 Loaded bookings from Supabase:', allBookings.length);
+          setBookings(allBookings);
 
-    const lastLogin = localStorage.getItem('admin_last_login');
-    const newBookings = allBookings.filter(b => 
-        (b.status === 'pending' || b.status === 'modified') && 
-        (!lastLogin || new Date(b.createdAt) > new Date(lastLogin))
-    );
-    if (newBookings.length > 0) {
-        setNotifications(newBookings);
-    }
-    localStorage.setItem('admin_last_login', new Date().toISOString());
+          // Check for new bookings since last login
+          const lastLogin = localStorage.getItem('admin_last_login');
+          const newBookings = allBookings.filter(b =>
+            (b.status === 'pending_payment' || b.payment_status === 'pending') &&
+            (!lastLogin || new Date(b.created_at) > new Date(lastLogin))
+          );
+          if (newBookings.length > 0) {
+            setNotifications(newBookings);
+            console.log('🔔 New bookings:', newBookings.length);
+          }
+        }
 
-  }, [user, navigate]);
+        // Fetch all rooms from Supabase (including hidden ones for admin)
+        const roomsResult = await roomService.getRooms(true);
+        if (roomsResult.success) {
+          console.log('🏠 Loaded rooms from Supabase:', roomsResult.rooms.length);
+          setRooms(roomsResult.rooms);
+        } else {
+          // Fallback to local data
+          setRooms(initialRoomsData);
+        }
+
+        // Still need to get reviews and users from localStorage for now
+        const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
+        setReviews(allReviews);
+
+        localStorage.setItem('admin_last_login', new Date().toISOString());
+      } catch (error) {
+        console.error('❌ Error loading admin data:', error);
+        toast({
+          title: language === 'zh' ? '載入失敗' : 'Load Failed',
+          description: language === 'zh' ? '無法載入數據' : 'Failed to load data',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    loadAdminData();
+  }, [user, navigate, language, toast]);
 
   const handleRoleChange = (userId, newIsAdmin) => {
     updateUserRole(userId, newIsAdmin);
@@ -94,10 +131,43 @@ export const AdminPage = () => {
     }
   };
   
-  const handleToggleRoomVisibility = (roomId, isVisible) => {
-    const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, hidden: !isVisible } : r);
-    setRooms(updatedRooms);
-    localStorage.setItem('ofcoz_rooms', JSON.stringify(updatedRooms));
+  const handleToggleRoomVisibility = async (roomId, currentlyHidden) => {
+    try {
+      const newHiddenState = !currentlyHidden; // Toggle the state
+      console.log('🔄 Toggling room visibility:', { roomId, currentlyHidden, newHiddenState });
+
+      // Update in Supabase
+      const result = await roomService.toggleRoomVisibility(roomId, newHiddenState);
+
+      if (result.success) {
+        // Update local state
+        const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, hidden: newHiddenState } : r);
+        setRooms(updatedRooms);
+
+        const roomName = result.room.name;
+        toast({
+          title: language === 'zh' ? '房間狀態已更新' : 'Room Status Updated',
+          description: language === 'zh'
+            ? `${roomName} 現在${newHiddenState ? '隱藏' : '可見'}`
+            : `${roomName} is now ${newHiddenState ? 'hidden' : 'visible'}`,
+        });
+
+        console.log('✅ Room visibility updated successfully');
+      } else {
+        toast({
+          title: language === 'zh' ? '更新失敗' : 'Update Failed',
+          description: result.error,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error toggling room visibility:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: language === 'zh' ? '無法更新房間狀態' : 'Could not update room status',
+        variant: 'destructive',
+      });
+    }
   };
 
 
@@ -122,7 +192,7 @@ export const AdminPage = () => {
     navigate('/');
   };
 
-  if (!user || !user.isAdmin) return null;
+  if (!user || (!user.isAdmin && !user.is_admin)) return null;
 
   return (
     <>

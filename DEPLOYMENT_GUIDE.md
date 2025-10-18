@@ -36,7 +36,25 @@ This guide will help you set up your cat cafe booking application using Hostinge
    - **Output Directory**: `dist` (should auto-detect)
    - **Install Command**: `npm install` (should auto-detect)
 
-4. **Deploy**
+4. **Add Environment Variables** ⚠️ **CRITICAL STEP**
+
+   Click "Environment Variables" and add these:
+
+   ```
+   Name: VITE_SUPABASE_URL
+   Value: https://rlfrwsyqletwegvflqip.supabase.co
+
+   Name: VITE_SUPABASE_ANON_KEY
+   Value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsZnJ3c3lxbGV0d2VndmZscWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0ODQ3NzAsImV4cCI6MjA3NTA2MDc3MH0.inDvJO8WSfvIE8dkNyefTUtOG4k0r0pN1sG5G6gQMBk
+   ```
+
+   ⚠️ **Important Notes:**
+   - These must be set BEFORE deploying
+   - Variable names are case-sensitive
+   - Don't add quotes around values
+   - The anon key is safe to expose (it's public)
+
+5. **Deploy**
    - Click "Deploy"
    - Wait for the build to complete (2-3 minutes)
    - Your app will be available at `https://your-project-name.vercel.app`
@@ -96,7 +114,45 @@ This guide will help you set up your cat cafe booking application using Hostinge
 
 ---
 
-## Part 3: Configure Custom Domain in Vercel
+## Part 3: Configure Supabase for Production
+
+### Step 1: Add Production URL to Supabase
+
+1. **Go to Supabase Dashboard**
+   - Visit [supabase.com](https://supabase.com)
+   - Open your project: `rlfrwsyqletwegvflqip`
+
+2. **Update Site URL**
+   - Go to **Authentication** → **URL Configuration**
+   - Set **Site URL** to your Vercel URL: `https://your-project-name.vercel.app`
+   - (Update again later when custom domain is active)
+
+3. **Add Redirect URLs**
+
+   Add these URLs to **Redirect URLs**:
+   ```
+   https://your-project-name.vercel.app/#/auth/confirm
+   https://your-project-name.vercel.app/#/reset-password
+   https://your-project-name.vercel.app/#/dashboard
+   http://localhost:5173/#/auth/confirm (keep for local dev)
+   ```
+
+4. **Save Changes**
+
+### Step 2: Configure Email Settings
+
+1. **Email Confirmation** (Optional but Recommended)
+   - Go to **Authentication** → **Providers** → **Email**
+   - Enable "Confirm email" for production security
+   - Configure SMTP (see SMTP_SETUP_GUIDE.md)
+
+2. **Test Email Delivery**
+   - Register a test user on production
+   - Verify confirmation email arrives
+
+---
+
+## Part 4: Configure Custom Domain in Vercel
 
 ### Step 1: Add Domain to Vercel
 
@@ -133,7 +189,27 @@ This guide will help you set up your cat cafe booking application using Hostinge
 
 ---
 
-## Part 4: Testing and Verification
+### Step 4: Update Supabase URLs for Custom Domain
+
+After your custom domain is active:
+
+1. **Update Site URL**
+   - Go to Supabase → **Authentication** → **URL Configuration**
+   - Change **Site URL** to: `https://yourdomain.com`
+
+2. **Update Redirect URLs**
+   - Replace Vercel URLs with your custom domain:
+   ```
+   https://yourdomain.com/#/auth/confirm
+   https://yourdomain.com/#/reset-password
+   https://yourdomain.com/#/dashboard
+   ```
+
+3. **Save and Test**
+
+---
+
+## Part 5: Testing and Verification
 
 ### Step 1: Test Domain Access
 
@@ -149,12 +225,15 @@ This guide will help you set up your cat cafe booking application using Hostinge
 ### Step 2: Test All Functionality
 
 - [ ] User registration and login
+- [ ] Email confirmation (check inbox)
+- [ ] Password reset flow
 - [ ] Room booking system
 - [ ] Shopping cart and products
 - [ ] Admin dashboard access
 - [ ] Language switching (EN/中文)
 - [ ] Mobile responsiveness
-- [ ] Email functionality
+- [ ] All images load correctly
+- [ ] Database operations (Supabase connection)
 
 ---
 
@@ -180,9 +259,21 @@ This guide will help you set up your cat cafe booking application using Hostinge
 - Verify environment variables if needed
 
 **App doesn't load properly**
-- Check browser console for errors
+- Check browser console for errors (F12)
 - Verify routing configuration (HashRouter should work)
 - Test the production build locally with `npm run preview`
+- Check if environment variables are set in Vercel
+
+**Blank page after deployment**
+- Verify environment variables are set correctly
+- Check Vercel deployment logs for errors
+- Ensure Supabase is not paused (free tier auto-pauses after 7 days)
+
+**Database/Auth not working**
+- Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set
+- Check Supabase project is active
+- Verify production URL is added to Supabase allowed URLs
+- Check browser console for Supabase connection errors
 
 ### Performance Optimization
 
@@ -222,4 +313,50 @@ This guide will help you set up your cat cafe booking application using Hostinge
 
 ---
 
+---
+
+## Quick Deployment Checklist
+
+Use this checklist to deploy step-by-step:
+
+### Pre-Deployment
+- [ ] Code committed and pushed to GitHub
+- [ ] `.env` file NOT committed (in .gitignore)
+- [ ] Test local build: `npm run build && npm run preview`
+
+### Vercel Setup
+- [ ] Sign up/login to Vercel with GitHub
+- [ ] Import repository
+- [ ] Set environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+- [ ] Deploy and get Vercel URL
+
+### Supabase Configuration
+- [ ] Add Vercel URL to Supabase Site URL
+- [ ] Add redirect URLs to Supabase
+- [ ] Enable email confirmation (optional)
+- [ ] Configure SMTP (optional but recommended)
+
+### Custom Domain (Optional)
+- [ ] Configure DNS in Hostinger (A and CNAME records)
+- [ ] Add domain to Vercel
+- [ ] Wait for DNS propagation (24-48 hours)
+- [ ] Update Supabase with custom domain URLs
+- [ ] Verify SSL certificate is active
+
+### Testing
+- [ ] Test registration and login
+- [ ] Test email confirmation
+- [ ] Test all main features
+- [ ] Test on mobile devices
+- [ ] Test both languages (EN/ZH)
+
+---
+
 **Congratulations! Your cat cafe booking app is now live with professional hosting and your custom domain!**
+
+## Need Help?
+
+- **Vercel Issues**: Check [Vercel Documentation](https://vercel.com/docs)
+- **Supabase Issues**: Check [Supabase Documentation](https://supabase.com/docs)
+- **DNS Issues**: Contact Hostinger support
+- **General Issues**: Check browser console (F12) for error messages
