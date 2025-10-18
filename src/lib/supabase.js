@@ -7,24 +7,62 @@ console.log('🔧 Supabase Config Check:');
 console.log('URL:', supabaseUrl ? `${supabaseUrl.slice(0, 30)}...` : 'MISSING');
 console.log('Key:', supabaseAnonKey ? `${supabaseAnonKey.slice(0, 20)}...` : 'MISSING');
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
-}
+// Create a dummy client if env vars are missing (prevents app crash)
+// The app will show a configuration error instead of blank page
+const createSupabaseClient = () => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('❌ Missing Supabase environment variables!');
+    console.error('Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment.');
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    storage: localStorage,
-  },
-  db: {
-    schema: 'public'
-  },
-  global: {
-    headers: { 'x-application-name': 'cat-cafe-booking' },
-  },
-});
+    // Return a mock client that throws helpful errors
+    return {
+      auth: {
+        getSession: async () => {
+          throw new Error('Supabase not configured: Missing environment variables');
+        },
+        signInWithPassword: async () => {
+          throw new Error('Supabase not configured: Missing environment variables');
+        },
+        signUp: async () => {
+          throw new Error('Supabase not configured: Missing environment variables');
+        },
+        signOut: async () => {
+          throw new Error('Supabase not configured: Missing environment variables');
+        },
+        onAuthStateChange: () => ({
+          data: { subscription: { unsubscribe: () => {} } }
+        })
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: async () => {
+              throw new Error('Supabase not configured: Missing environment variables');
+            }
+          })
+        })
+      })
+    };
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      storage: localStorage,
+    },
+    db: {
+      schema: 'public'
+    },
+    global: {
+      headers: { 'x-application-name': 'cat-cafe-booking' },
+    },
+  });
+};
+
+export const supabase = createSupabaseClient();
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
 // Helper function to handle Supabase errors with bilingual support
 export const handleSupabaseError = (error, language = 'en') => {
