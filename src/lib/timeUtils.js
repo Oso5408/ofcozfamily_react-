@@ -56,9 +56,16 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
         const time = `${hour.toString().padStart(2, '0')}:00`;
         const checkTime = new Date(`${date}T${time}:00`);
 
+        // Check if we can book at least 1 hour from this start time
+        const checkEndTime = new Date(checkTime);
+        checkEndTime.setHours(checkEndTime.getHours() + 1);
+
         let isBooked = false;
         for (const slot of bookedSlots) {
-            if (checkTime >= slot.start && checkTime < slot.end) {
+            // Use proper overlap detection: (start1 < end2) && (end1 > start2)
+            // Proposed booking: [checkTime, checkEndTime]
+            // Existing booking: [slot.start, slot.end]
+            if (checkTime < slot.end && checkEndTime > slot.start) {
                 isBooked = true;
                 break;
             }
@@ -134,10 +141,20 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
       end: new Date(b.end_time),
     }));
 
-    // Find the earliest booking that starts after our start time
+    // Check for overlap with existing bookings
     const startDateTime = new Date(`${date}T${startTime}:00`);
-    let maxEndTime = null;
 
+    // First, check if there's already a booking in progress at the start time
+    for (const slot of bookedSlots) {
+      if (slot.start <= startDateTime && slot.end > startDateTime) {
+        // There's a booking already in progress at this start time
+        console.warn(`Booking in progress at ${startTime}: ${slot.start} - ${slot.end}`);
+        return []; // No valid end times
+      }
+    }
+
+    // Find the earliest booking that starts after our start time
+    let maxEndTime = null;
     for (const slot of bookedSlots) {
       if (slot.start > startDateTime) {
         // Found a booking that starts after our start time
