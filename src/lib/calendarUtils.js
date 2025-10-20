@@ -65,7 +65,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
   if (language === 'zh') {
     descriptionLines.push(`預約詳情`);
     descriptionLines.push(`━━━━━━━━━━━━━━━━━━`);
-    descriptionLines.push(`📋 收據編號：${booking.receiptNumber || 'N/A'}`);
+    descriptionLines.push(`📋 訂單編號：${booking.receiptNumber || 'N/A'}`);
     descriptionLines.push(`🏠 房間：${roomName}`);
     descriptionLines.push(`📅 日期：${booking.date}`);
     descriptionLines.push(`⏰ 時間：${startTime} - ${endTime}`);
@@ -85,7 +85,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
   } else {
     descriptionLines.push(`Booking Details`);
     descriptionLines.push(`━━━━━━━━━━━━━━━━━━`);
-    descriptionLines.push(`📋 Receipt Number: ${booking.receiptNumber || 'N/A'}`);
+    descriptionLines.push(`📋 Order Number: ${booking.receiptNumber || 'N/A'}`);
     descriptionLines.push(`🏠 Room: ${roomName}`);
     descriptionLines.push(`📅 Date: ${booking.date}`);
     descriptionLines.push(`⏰ Time: ${startTime} - ${endTime}`);

@@ -5,7 +5,7 @@ export const email = {
       title: "Hello {name},",
       intro: "Congratulations, you have successfully booked the workspace ticket - {roomName}! Please present this email for registration on the day of service.",
       details: "Confirmation Guidelines",
-      bookingId: "Receipt Number",
+      bookingId: "Order Number",
       service: "Service",
       startDate: "Start Date",
       endDate: "End Date",

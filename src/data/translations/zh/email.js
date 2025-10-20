@@ -5,7 +5,7 @@ export const email = {
       title: "您好 {name},",
       intro: "恭喜您, 您已成功預訂工作室套票 - {roomName}！請於服務當日出示電郵登記即可。",
       details: "確認指引",
-      bookingId: "收據編號",
+      bookingId: "訂單編號",
       service: "服務",
       startDate: "開始日期",
       endDate: "結束日期",
