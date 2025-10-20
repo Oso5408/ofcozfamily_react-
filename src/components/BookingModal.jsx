@@ -499,8 +499,11 @@ export const BookingModal = ({
             </div>
           </Card>
 
-          <DialogFooter className="flex-col items-center mt-6">
-            <Button type="submit" disabled={(bookingData.bookingType === 'token' && !hasEnoughTokens) || !bookingData.agreedToTerms} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">{t.booking.confirm}</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2 items-center mt-6">
+            <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto border-amber-300 text-amber-700 hover:bg-amber-50">
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </Button>
+            <Button type="submit" disabled={(bookingData.bookingType === 'token' && !hasEnoughTokens) || !bookingData.agreedToTerms} className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">{t.booking.confirm}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
