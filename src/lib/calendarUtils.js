@@ -15,22 +15,22 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
   const t = translations;
 
   // Parse date and time
-  const bookingDate = booking.date; // YYYY-MM-DD
+  const bookingDate = booking.date; // Can be YYYY-MM-DD or DD/MM/YYYY
   const startTime = booking.startTime; // HH:MM
   const endTime = booking.endTime; // HH:MM
 
-  // Parse date - handle both YYYY-MM-DD and MM/DD/YYYY formats
+  // Parse date - handle both YYYY-MM-DD and DD/MM/YYYY formats
   let year, month, day;
 
   if (bookingDate.includes('-')) {
-    // Format: YYYY-MM-DD
+    // Format: YYYY-MM-DD (ISO format from database)
     [year, month, day] = bookingDate.split('-');
   } else if (bookingDate.includes('/')) {
-    // Format: MM/DD/YYYY
+    // Format: DD/MM/YYYY (formatted for display)
     const parts = bookingDate.split('/');
-    month = parts[0];
-    day = parts[1];
-    year = parts[2];
+    day = parts[0];    // Day is first in DD/MM/YYYY
+    month = parts[1];  // Month is second
+    year = parts[2];   // Year is last
   } else {
     console.error('Unknown date format:', bookingDate);
     return '';
@@ -136,10 +136,11 @@ export const openGoogleCalendar = (booking, language, translations) => {
 
   // Debug: Log the URL to console
   console.log('=== Google Calendar Debug ===');
-  console.log('Booking date:', booking.date);
+  console.log('Booking date (input):', booking.date);
   console.log('Start time:', booking.startTime);
   console.log('End time:', booking.endTime);
   console.log('Generated URL:', calendarUrl);
+  console.log('Decoded URL:', decodeURIComponent(calendarUrl));
   console.log('============================');
 
   // Open in new window/tab
