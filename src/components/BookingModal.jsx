@@ -298,7 +298,7 @@ export const BookingModal = ({
                       </SelectTrigger>
                       <SelectContent position="popper">
                         {loadingEndTimes ? (
-                          <SelectItem value="" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
+                          <SelectItem value="loading" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
                         ) : (
                           endTimeOptions.map(time => (
                             <SelectItem key={time} value={time}>{time}</SelectItem>
@@ -366,7 +366,7 @@ export const BookingModal = ({
                           </SelectTrigger>
                           <SelectContent position="popper">
                             {loadingEndTimes ? (
-                              <SelectItem value="" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
+                              <SelectItem value="loading" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
                             ) : (
                               endTimeOptions.map(time => (
                                 <SelectItem key={time} value={time}>{time}</SelectItem>
