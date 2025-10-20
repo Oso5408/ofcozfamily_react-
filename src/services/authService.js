@@ -22,6 +22,7 @@ export const authService = {
           data: {
             full_name: userData.fullName,
             phone: userData.phone,
+            username: userData.username, // Add username to metadata
           }
         }
       });

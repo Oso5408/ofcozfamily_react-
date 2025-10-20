@@ -92,6 +92,7 @@ export const AuthProvider = ({ children }) => {
         {
           fullName: userData.fullName,
           phone: userData.phone,
+          username: userData.username, // Add username
         }
       );
 

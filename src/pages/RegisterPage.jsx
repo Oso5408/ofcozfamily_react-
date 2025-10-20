@@ -17,17 +17,21 @@ import {
   validateEmail,
   validatePassword,
   validateName,
+  validateUsername,
+  getUsernameValidation,
   getValidationMessages,
 } from '@/utils/validation';
 
 export const RegisterPage = () => {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [touched, setTouched] = useState({
     name: false,
+    username: false,
     email: false,
     password: false,
     confirmPassword: false,
@@ -41,6 +45,8 @@ export const RegisterPage = () => {
 
   // Validation state
   const nameError = touched.name && !validateName(name) ? validationMessages.nameRequired : '';
+  const usernameValidation = getUsernameValidation(username);
+  const usernameError = touched.username && !usernameValidation.isValid;
   const emailError = touched.email && !validateEmail(email) ? validationMessages.emailInvalid : '';
   const passwordValidation = validatePassword(password);
   const passwordError = touched.password && password.length > 0 && !passwordValidation.isValid;
@@ -55,6 +61,7 @@ export const RegisterPage = () => {
     /\d/.test(password);
 
   const hasErrors = !validateName(name) ||
+                    !validateUsername(username) ||
                     !validateEmail(email) ||
                     !hasMinimumPasswordRequirements ||
                     password !== confirmPassword ||
@@ -71,6 +78,7 @@ export const RegisterPage = () => {
     // Mark all fields as touched
     setTouched({
       name: true,
+      username: true,
       email: true,
       password: true,
       confirmPassword: true,
@@ -81,6 +89,15 @@ export const RegisterPage = () => {
       toast({
         title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
         description: validationMessages.nameRequired,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validateUsername(username)) {
+      toast({
+        title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
+        description: validationMessages.usernameInvalid,
         variant: 'destructive',
       });
       return;
@@ -120,7 +137,7 @@ export const RegisterPage = () => {
 
     try {
       console.log('🚀 Starting registration...');
-      const result = await register({ name, email, password, fullName: name, phone: '' });
+      const result = await register({ name, username, email, password, fullName: name, phone: '' });
       console.log('📝 Registration result:', result);
 
       if (result.success) {
@@ -231,6 +248,42 @@ export const RegisterPage = () => {
                   </div>
                 )}
               </div>
+
+              <div>
+                <Label htmlFor="username" className="text-amber-800">
+                  {language === 'zh' ? '用戶名稱' : 'Username'}
+                </Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  onBlur={() => handleBlur('username')}
+                  className={`border-amber-200 focus:border-amber-400 ${usernameError ? 'border-red-500' : ''}`}
+                  placeholder={language === 'zh' ? '例如: johndoe123' : 'e.g. johndoe123'}
+                  required
+                />
+                {usernameError && (
+                  <div className="flex items-start gap-1 mt-1 text-xs text-red-600">
+                    <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-0.5">
+                      {language === 'zh' ? '用戶名稱還需要：' : 'Username still needs:'}
+                      <ul className="list-none ml-2 space-y-0.5">
+                        {usernameValidation.errors.tooShort && (
+                          <li>• {language === 'zh' ? '至少3個字元' : 'At least 3 characters'}</li>
+                        )}
+                        {usernameValidation.errors.tooLong && (
+                          <li>• {language === 'zh' ? '不超過20個字元' : 'No more than 20 characters'}</li>
+                        )}
+                        {usernameValidation.errors.invalidChars && (
+                          <li>• {language === 'zh' ? '只能包含字母和數字' : 'Only letters and numbers allowed'}</li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <Label htmlFor="email" className="text-amber-800">
                   {language === 'zh' ? '電郵地址' : 'Email Address'}

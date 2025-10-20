@@ -87,6 +87,38 @@ export const validateName = (name) => {
 };
 
 /**
+ * Validate username
+ * Requirements:
+ * - Minimum 3 characters
+ * - Maximum 20 characters
+ * - Alphanumeric only (a-z, A-Z, 0-9)
+ * - No spaces or special characters
+ */
+export const validateUsername = (username) => {
+  const usernameRegex = /^[a-zA-Z0-9]{3,20}$/;
+  return usernameRegex.test(username);
+};
+
+/**
+ * Get username validation details
+ */
+export const getUsernameValidation = (username) => {
+  const minLength = 3;
+  const maxLength = 20;
+  const isAlphanumeric = /^[a-zA-Z0-9]*$/.test(username);
+  const hasValidLength = username.length >= minLength && username.length <= maxLength;
+
+  return {
+    isValid: isAlphanumeric && hasValidLength,
+    errors: {
+      tooShort: username.length > 0 && username.length < minLength,
+      tooLong: username.length > maxLength,
+      invalidChars: !isAlphanumeric,
+    },
+  };
+};
+
+/**
  * Get validation error messages
  */
 export const getValidationMessages = (language = 'en') => {
@@ -96,6 +128,11 @@ export const getValidationMessages = (language = 'en') => {
       emailRequired: 'Email is required',
       nameRequired: 'Name is required',
       nameTooLong: 'Name must be less than 100 characters',
+      usernameRequired: 'Username is required',
+      usernameTooShort: 'Username must be at least 3 characters',
+      usernameTooLong: 'Username must be no more than 20 characters',
+      usernameInvalidChars: 'Username can only contain letters and numbers',
+      usernameInvalid: 'Username must be 3-20 characters, letters and numbers only',
       passwordRequired: 'Password is required',
       passwordMinLength: 'Password must be at least 8 characters',
       passwordUpperCase: 'Password must contain at least one uppercase letter',
@@ -110,6 +147,11 @@ export const getValidationMessages = (language = 'en') => {
       emailRequired: '電郵地址為必填',
       nameRequired: '姓名為必填',
       nameTooLong: '姓名不得超過100個字元',
+      usernameRequired: '用戶名稱為必填',
+      usernameTooShort: '用戶名稱至少需要3個字元',
+      usernameTooLong: '用戶名稱不得超過20個字元',
+      usernameInvalidChars: '用戶名稱只能包含字母和數字',
+      usernameInvalid: '用戶名稱必須為3-20個字元，只能包含字母和數字',
       passwordRequired: '密碼為必填',
       passwordMinLength: '密碼至少需要8個字元',
       passwordUpperCase: '密碼必須包含至少一個大寫字母',
