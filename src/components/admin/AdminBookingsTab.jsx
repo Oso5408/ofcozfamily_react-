@@ -177,13 +177,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   };
 
   const handleAdminCancelBooking = async () => {
-    if (!bookingToCancel || !user?.id) return;
+    if (!bookingToCancel || !currentUser?.id) return;
 
     try {
       // Call the admin cancel booking service
       const result = await bookingService.adminCancelBooking(
         bookingToCancel,
-        user.id,
+        currentUser.id,
         'Cancelled by admin'
       );
 
