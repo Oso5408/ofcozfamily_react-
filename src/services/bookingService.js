@@ -313,6 +313,64 @@ export const bookingService = {
   },
 
   /**
+   * Admin cancel booking - bypasses ownership check and cancellation policy
+   * @param {string} bookingId - Booking ID to cancel
+   * @param {string} adminUserId - Admin user ID performing the cancellation
+   * @param {string} reason - Reason for cancellation
+   * @returns {Promise<{success: boolean, booking?: object, error?: string}>}
+   */
+  async adminCancelBooking(bookingId, adminUserId, reason = 'Cancelled by admin') {
+    try {
+      console.log('🔧 Admin cancelling booking:', bookingId);
+
+      // Fetch booking details
+      const { data: booking, error: fetchError } = await supabase
+        .from('bookings')
+        .select('*, rooms(*)')
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Check if already cancelled
+      if (booking.status === 'cancelled') {
+        return { success: false, error: 'This booking is already cancelled' };
+      }
+
+      const now = new Date();
+      const bookingStart = new Date(booking.start_time);
+      const hoursBeforeBooking = Math.floor((bookingStart - now) / (1000 * 60 * 60));
+
+      // Update booking status to cancelled (no token deduction for admin cancellations)
+      const { data: updatedBooking, error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          cancelled_by: adminUserId,
+          cancellation_hours_before: hoursBeforeBooking,
+          token_deducted_for_cancellation: false,
+          cancellation_reason: reason
+        })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      console.log('✅ Admin cancelled booking successfully');
+
+      return {
+        success: true,
+        booking: updatedBooking
+      };
+    } catch (error) {
+      console.error('❌ Error in admin cancel booking:', error);
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
    * Subscribe to booking changes for a room
    */
   subscribeToRoomBookings(roomId, callback) {

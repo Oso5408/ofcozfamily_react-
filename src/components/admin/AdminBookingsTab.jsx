@@ -176,32 +176,49 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     }
   };
 
-  const handleAdminCancelBooking = () => {
-    if (!bookingToCancel) return;
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    const bookingToCancelData = allBookings.find(b => b.id === bookingToCancel);
+  const handleAdminCancelBooking = async () => {
+    if (!bookingToCancel || !user?.id) return;
 
-    if (!bookingToCancelData) return;
+    try {
+      // Call the admin cancel booking service
+      const result = await bookingService.adminCancelBooking(
+        bookingToCancel,
+        user.id,
+        'Cancelled by admin'
+      );
 
-    if (bookingToCancelData.bookingType === 'token' && bookingToCancelData.userId && bookingToCancelData.tokensUsed > 0) {
-      const allUsers = JSON.parse(localStorage.getItem('ofcoz_users') || '[]');
-      const userIndex = allUsers.findIndex(u => u.id === bookingToCancelData.userId);
-      if (userIndex !== -1) {
-        allUsers[userIndex].tokens += bookingToCancelData.tokensUsed;
-        localStorage.setItem('ofcoz_users', JSON.stringify(allUsers));
-        setUsers(allUsers);
-        toast({ title: t.booking.tokensRefunded, description: t.booking.tokensRefundedDesc.replace('{count}', bookingToCancelData.tokensUsed) });
+      if (!result.success) {
+        toast({
+          title: language === 'zh' ? '取消失敗' : 'Cancellation Failed',
+          description: result.error,
+          variant: 'destructive'
+        });
+        return;
       }
+
+      // Update local bookings state
+      setBookings(prevBookings =>
+        prevBookings.map(b =>
+          b.id === bookingToCancel
+            ? { ...b, status: 'cancelled', cancelled_at: new Date().toISOString() }
+            : b
+        )
+      );
+
+      toast({
+        title: t.booking.cancelSuccess,
+        description: t.booking.cancelSuccessDesc
+      });
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast({
+        title: language === 'zh' ? '取消失敗' : 'Cancellation Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setBookingToCancel(null);
     }
-
-    const updatedBookings = allBookings.map(b =>
-      b.id === bookingToCancel ? { ...b, status: 'cancelled' } : b
-    );
-    localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookings));
-    setBookings(updatedBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-
-    toast({ title: t.booking.cancelSuccess, description: t.booking.cancelSuccessDesc });
-    setBookingToCancel(null);
   };
   
   const handleSaveBooking = (updatedBooking) => {
