@@ -85,6 +85,99 @@ const generateAllTimeOptions = () => {
 };
 
 /**
+ * Generate available end time options based on selected start time
+ * Ensures no overlap with existing bookings
+ */
+export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdToExclude = null) => {
+  if (!date || !startTime) return [];
+
+  try {
+    // Fetch bookings from Supabase for this specific date and room
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const result = await bookingService.getBookingsByDateRange(
+      startOfDay.toISOString(),
+      endOfDay.toISOString(),
+      { roomId }
+    );
+
+    if (!result.success) {
+      console.error('Failed to fetch bookings:', result.error);
+      return generateAllEndTimeOptions(startTime); // Return all times if fetch fails
+    }
+
+    const allBookings = result.bookings || [];
+
+    // Filter relevant bookings
+    let relevantBookings = allBookings.filter(booking => {
+      const bookingDate = new Date(booking.start_time).toISOString().split('T')[0];
+      const isSameDate = bookingDate === date;
+      const isConfirmed = booking.status !== 'cancelled';
+      const isNotExcluded = booking.id !== bookingIdToExclude;
+
+      if (!isSameDate || !isConfirmed || !isNotExcluded) return false;
+
+      // Room B (id=1) and Room C (id=2) are linked
+      if (roomId === 1 || roomId === 2) {
+        return booking.room_id === 1 || booking.room_id === 2;
+      }
+
+      return booking.room_id === roomId;
+    });
+
+    const bookedSlots = relevantBookings.map(b => ({
+      start: new Date(b.start_time),
+      end: new Date(b.end_time),
+    }));
+
+    // Find the earliest booking that starts after our start time
+    const startDateTime = new Date(`${date}T${startTime}:00`);
+    let maxEndTime = null;
+
+    for (const slot of bookedSlots) {
+      if (slot.start > startDateTime) {
+        // Found a booking that starts after our start time
+        if (!maxEndTime || slot.start < maxEndTime) {
+          maxEndTime = slot.start;
+        }
+      }
+    }
+
+    const options = [];
+    const startHour = parseInt(startTime.split(':')[0]);
+
+    // Generate end time options from start+1 hour to either:
+    // - The next booking start time, OR
+    // - 22:00 (closing time)
+    const maxHour = maxEndTime ? maxEndTime.getHours() : 22;
+
+    for (let hour = startHour + 1; hour <= maxHour; hour++) {
+      const time = `${hour.toString().padStart(2, '0')}:00`;
+      options.push(time);
+    }
+
+    return options;
+  } catch (error) {
+    console.error('Error generating end time options:', error);
+    return generateAllEndTimeOptions(startTime);
+  }
+};
+
+// Helper function to generate all possible end times after start time
+const generateAllEndTimeOptions = (startTime) => {
+  const options = [];
+  const startHour = parseInt(startTime.split(':')[0]);
+  for (let hour = startHour + 1; hour <= 22; hour++) {
+    options.push(`${hour.toString().padStart(2, '0')}:00`);
+  }
+  return options;
+};
+
+/**
  * Check if a daily slot conflicts with existing bookings
  * Now fetches from Supabase instead of localStorage
  */

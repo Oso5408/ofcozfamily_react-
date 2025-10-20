@@ -49,7 +49,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
   const endDateFormatted = `${year}${month}${day}T${endHour}${endMinute}00`;
 
   // Room name (translated)
-  const roomName = booking.room?.name
+  const roomName = booking.room?.name && t.rooms?.roomNames
     ? t.rooms.roomNames[booking.room.name]
     : (language === 'zh' ? '房間' : 'Room');
 

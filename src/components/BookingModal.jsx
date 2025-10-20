@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mail } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { generateTimeOptions, checkDailySlotConflict } from '@/lib/timeUtils';
+import { generateTimeOptions, generateEndTimeOptions, checkDailySlotConflict } from '@/lib/timeUtils';
 
 export const BookingModal = ({
   isOpen,
@@ -35,8 +35,10 @@ export const BookingModal = ({
   const t = translations[language];
   const [showOtherPurposeInput, setShowOtherPurposeInput] = useState(false);
   const [timeOptions, setTimeOptions] = useState([]);
+  const [endTimeOptions, setEndTimeOptions] = useState([]);
   const [availableDailySlots, setAvailableDailySlots] = useState([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
+  const [loadingEndTimes, setLoadingEndTimes] = useState(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
@@ -96,6 +98,32 @@ export const BookingModal = ({
 
     fetchTimeOptions();
   }, [bookingData.date, selectedRoom?.id]);
+
+  // Fetch available end time options when start time, date, or room changes
+  useEffect(() => {
+    const fetchEndTimeOptions = async () => {
+      if (!bookingData.date || !selectedRoom?.id || !bookingData.startTime) {
+        setEndTimeOptions([]);
+        return;
+      }
+
+      setLoadingEndTimes(true);
+      try {
+        const options = await generateEndTimeOptions(
+          bookingData.date,
+          selectedRoom.id,
+          bookingData.startTime
+        );
+        setEndTimeOptions(options);
+      } catch (error) {
+        console.error('Error fetching end time options:', error);
+      } finally {
+        setLoadingEndTimes(false);
+      }
+    };
+
+    fetchEndTimeOptions();
+  }, [bookingData.date, bookingData.startTime, selectedRoom?.id]);
 
   const handlePurposeChange = (purpose, checked) => {
     const currentPurposes = Array.isArray(bookingData.purpose) ? bookingData.purpose : [];
@@ -269,9 +297,13 @@ export const BookingModal = ({
                         <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
                       </SelectTrigger>
                       <SelectContent position="popper">
-                        {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
-                          <SelectItem key={time} value={time}>{time}</SelectItem>
-                        ))}
+                        {loadingEndTimes ? (
+                          <SelectItem value="" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
+                        ) : (
+                          endTimeOptions.map(time => (
+                            <SelectItem key={time} value={time}>{time}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -333,9 +365,13 @@ export const BookingModal = ({
                             <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
                           </SelectTrigger>
                           <SelectContent position="popper">
-                            {timeOptions.filter(time => time > (bookingData.startTime || "00:00")).map(time => (
-                              <SelectItem key={time} value={time}>{time}</SelectItem>
-                            ))}
+                            {loadingEndTimes ? (
+                              <SelectItem value="" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
+                            ) : (
+                              endTimeOptions.map(time => (
+                                <SelectItem key={time} value={time}>{time}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
