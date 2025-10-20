@@ -39,6 +39,7 @@ export const BookingModal = ({
   const [availableDailySlots, setAvailableDailySlots] = useState([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
+  const [purposeError, setPurposeError] = useState(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
@@ -139,6 +140,22 @@ export const BookingModal = ({
     }
 
     setBookingData({ ...bookingData, purpose: newPurposes });
+    setPurposeError(false); // Clear error when user selects a purpose
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+
+    // Validate that at least one purpose is selected
+    if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
+      setPurposeError(true);
+      // Scroll to purpose field
+      document.getElementById('purpose-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    // If validation passes, call the original onSubmit
+    onSubmit(e);
   };
 
   const calculateRequiredTokens = () => {
@@ -232,7 +249,7 @@ export const BookingModal = ({
           )}
         </DialogHeader>
 
-        <form onSubmit={onSubmit}>
+        <form onSubmit={handleFormSubmit}>
           <div className="space-y-4 py-4">
             <div><Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label><Input id="name" value={bookingData.name} onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="email" className="text-amber-800">{t.booking.email}</Label><Input id="email" type="email" value={bookingData.email} onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
@@ -434,8 +451,10 @@ export const BookingModal = ({
               </div>
             )}
 
-            <div>
-              <Label className="text-amber-800">{t.booking.purpose}</Label>
+            <div id="purpose-section">
+              <Label className="text-amber-800">
+                {t.booking.purpose} <span className="text-red-500">*</span>
+              </Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
                 {businessPurposes.map(purpose => (
                   <div key={purpose} className="flex items-center space-x-2">
@@ -444,6 +463,11 @@ export const BookingModal = ({
                   </div>
                 ))}
               </div>
+              {purposeError && (
+                <p className="text-red-500 text-sm mt-2">
+                  {language === 'zh' ? '請選擇至少一項業務性質' : 'Please select at least one purpose'}
+                </p>
+              )}
               {showOtherPurposeInput && (
                 <div className="mt-2">
                   <Textarea id="other-purpose" value={bookingData.otherPurpose || ''} onChange={(e) => setBookingData({ ...bookingData, otherPurpose: e.target.value })} placeholder={t.booking.otherPurposePlaceholder} className="border-amber-200 focus:border-amber-400" />

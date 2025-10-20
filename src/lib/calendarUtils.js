@@ -53,11 +53,23 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
     ? t.rooms.roomNames[booking.room.name]
     : (language === 'zh' ? '房間' : 'Room');
 
-  // Event title (include user email for searchability)
-  const userEmail = booking.userEmail || booking.email || '';
+  // Get user name
+  const userName = booking.name || booking.userName || '';
+
+  // Format purpose - handle both array and string
+  let purposeText = '';
+  if (Array.isArray(booking.purpose)) {
+    purposeText = booking.purpose.join(', ');
+  } else if (booking.purpose) {
+    purposeText = booking.purpose;
+  } else {
+    purposeText = language === 'zh' ? '工作空間' : 'Workspace';
+  }
+
+  // Event title: Room name (User name) - Purpose
   const title = language === 'zh'
-    ? `${roomName} 預約 - ${booking.purpose || '工作空間'} (${userEmail})`
-    : `${roomName} Booking - ${booking.purpose || 'Workspace'} (${userEmail})`;
+    ? `${roomName} (${userName}) - ${purposeText}`
+    : `${roomName} (${userName}) - ${purposeText}`;
 
   // Event description with all booking details
   const descriptionLines = [];
@@ -70,7 +82,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
     descriptionLines.push(`📅 日期：${booking.date}`);
     descriptionLines.push(`⏰ 時間：${startTime} - ${endTime}`);
     descriptionLines.push(`👥 人數：${booking.guests || 1} 位客人`);
-    descriptionLines.push(`💼 業務性質：${booking.purpose || 'N/A'}`);
+    descriptionLines.push(`💼 業務性質：${purposeText}`);
 
     if (booking.specialRequests) {
       descriptionLines.push(`📝 特殊要求：${booking.specialRequests}`);
@@ -90,7 +102,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
     descriptionLines.push(`📅 Date: ${booking.date}`);
     descriptionLines.push(`⏰ Time: ${startTime} - ${endTime}`);
     descriptionLines.push(`👥 Guests: ${booking.guests || 1}`);
-    descriptionLines.push(`💼 Purpose: ${booking.purpose || 'N/A'}`);
+    descriptionLines.push(`💼 Purpose: ${purposeText}`);
 
     if (booking.specialRequests) {
       descriptionLines.push(`📝 Special Requests: ${booking.specialRequests}`);
