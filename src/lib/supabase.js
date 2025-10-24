@@ -113,22 +113,49 @@ export const handleSupabaseError = (error, language = 'en') => {
         : 'This email is already registered. Please login or use a different email.';
     }
 
-    // Invalid credentials
-    if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
+    // Invalid credentials (catches non-existent users and wrong passwords)
+    if (errorMsg.includes('invalid login credentials') ||
+        errorMsg.includes('invalid credentials') ||
+        errorMsg.includes('invalid email or password')) {
       return language === 'zh'
         ? '電郵或密碼錯誤'
         : 'Invalid email or password';
     }
 
     // Email not confirmed
-    if (errorMsg.includes('email not confirmed')) {
+    if (errorMsg.includes('email not confirmed') || errorMsg.includes('not confirmed')) {
       return language === 'zh'
         ? '請先確認您的電郵地址。請檢查您的收件箱。'
-        : 'Please confirm your email address. Check your inbox.';
+        : 'Email not confirmed. Please check your email.';
+    }
+
+    // Rate limiting / Too many attempts
+    if (errorMsg.includes('too many') ||
+        errorMsg.includes('rate limit') ||
+        errorMsg.includes('many requests')) {
+      return language === 'zh'
+        ? '嘗試次數過多。請稍後再試。'
+        : 'Too many login attempts. Please try again later.';
+    }
+
+    // Network errors
+    if (errorMsg.includes('network') ||
+        errorMsg.includes('fetch') ||
+        errorMsg.includes('connection')) {
+      return language === 'zh'
+        ? '網絡錯誤。請檢查您的連接。'
+        : 'Network error. Please check your connection.';
+    }
+
+    // Invalid email format
+    if (errorMsg.includes('invalid email') || errorMsg.includes('email format')) {
+      return language === 'zh'
+        ? '電郵地址格式無效'
+        : 'Invalid email format';
     }
 
     // Password requirements
-    if (errorMsg.includes('password')) {
+    if (errorMsg.includes('password') && errorMsg.includes('weak')) {
       return language === 'zh'
         ? '密碼必須至少6個字符'
         : 'Password must be at least 6 characters';

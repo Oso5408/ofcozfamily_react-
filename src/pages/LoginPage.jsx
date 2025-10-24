@@ -14,6 +14,7 @@ import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, LogIn, Mail, AlertCircle } from 'lucide-react';
 import { ResendConfirmationEmail } from '@/components/ResendConfirmationEmail';
+import { sanitizeAndValidateEmail, sanitizeAndValidatePassword, loginRateLimiter } from '@/lib/validation';
 
 export const LoginPage = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,7 @@ export const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailConfirmNotice, setShowEmailConfirmNotice] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '' });
   const { login } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
@@ -36,27 +38,98 @@ export const LoginPage = () => {
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+  // Validate inputs before submission
+  const validateForm = () => {
+    const newErrors = { email: '', password: '' };
+    let isValid = true;
 
-    const result = await login(email, password, rememberMe);
-
-    if (result.success) {
-      toast({
-        title: language === 'zh' ? '登入成功！' : 'Login Successful!',
-        description: language === 'zh' ? '歡迎回來！' : 'Welcome back!'
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: language === 'zh' ? '登入失敗' : 'Login Failed',
-        description: result.error || (language === 'zh' ? '電郵或密碼錯誤' : 'Invalid email or password'),
-        variant: "destructive"
-      });
+    // Validate email using utility function
+    const emailValidation = sanitizeAndValidateEmail(email);
+    if (!email.trim()) {
+      newErrors.email = language === 'zh' ? '請輸入電郵地址' : 'Email is required';
+      isValid = false;
+    } else if (!emailValidation.isValid) {
+      newErrors.email = language === 'zh' ? '電郵格式無效' : 'Invalid email format';
+      isValid = false;
+    } else if (emailValidation.hasSuspiciousContent) {
+      newErrors.email = language === 'zh' ? '電郵包含無效字符' : 'Email contains invalid characters';
+      isValid = false;
     }
 
-    setIsLoading(false);
+    // Validate password using utility function
+    const passwordValidation = sanitizeAndValidatePassword(password);
+    if (!password.trim()) {
+      newErrors.password = language === 'zh' ? '請輸入密碼' : 'Password is required';
+      isValid = false;
+    } else if (!passwordValidation.isValid) {
+      newErrors.password = language === 'zh' ? '密碼格式無效' : passwordValidation.error || 'Invalid password format';
+      isValid = false;
+    }
+
+    // Check rate limiting (client-side)
+    if (isValid && loginRateLimiter.isRateLimited(emailValidation.sanitized)) {
+      newErrors.email = language === 'zh' ? '嘗試次數過多，請稍後再試' : 'Too many attempts. Please try again later.';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Clear previous errors
+    setErrors({ email: '', password: '' });
+
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Sanitize inputs using validation utilities
+      const emailValidation = sanitizeAndValidateEmail(email);
+      const passwordValidation = sanitizeAndValidatePassword(password);
+
+      const result = await login(emailValidation.sanitized, passwordValidation.sanitized, rememberMe);
+
+      if (result.success) {
+        // Clear rate limiting on successful login
+        loginRateLimiter.clearAttempts(emailValidation.sanitized);
+
+        toast({
+          title: language === 'zh' ? '登入成功！' : 'Login Successful!',
+          description: language === 'zh' ? '歡迎回來！' : 'Welcome back!'
+        });
+        navigate('/dashboard');
+      } else {
+        // Record failed attempt for rate limiting
+        loginRateLimiter.recordFailedAttempt(emailValidation.sanitized);
+
+        // Handle specific error cases
+        let errorDescription = result.error || (language === 'zh' ? '電郵或密碼錯誤' : 'Invalid email or password');
+
+        toast({
+          title: language === 'zh' ? '登入失敗' : 'Login Failed',
+          description: errorDescription,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      // Handle unexpected errors (network issues, etc.)
+      console.error('Login error:', error);
+
+      toast({
+        title: language === 'zh' ? '登入失敗' : 'Login Failed',
+        description: language === 'zh' ? '發生錯誤，請稍後再試' : 'An error occurred. Please try again later.',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -118,10 +191,23 @@ export const LoginPage = () => {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="border-amber-200 focus:border-amber-400"
-                  required
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    // Clear error when user starts typing
+                    if (errors.email) {
+                      setErrors(prev => ({ ...prev, email: '' }));
+                    }
+                  }}
+                  className={`border-amber-200 focus:border-amber-400 ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`}
+                  maxLength={255}
+                  disabled={isLoading}
                 />
+                {errors.email && (
+                  <div className="flex items-center gap-1 mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{errors.email}</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -139,10 +225,23 @@ export const LoginPage = () => {
                 <PasswordInput
                   id="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="border-amber-200 focus:border-amber-400"
-                  required
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    // Clear error when user starts typing
+                    if (errors.password) {
+                      setErrors(prev => ({ ...prev, password: '' }));
+                    }
+                  }}
+                  className={`border-amber-200 focus:border-amber-400 ${errors.password ? 'border-red-500 focus:border-red-500' : ''}`}
+                  maxLength={255}
+                  disabled={isLoading}
                 />
+                {errors.password && (
+                  <div className="flex items-center gap-1 mt-1 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{errors.password}</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
