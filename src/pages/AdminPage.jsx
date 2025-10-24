@@ -237,11 +237,26 @@ export const AdminPage = () => {
                       </p>
                     </div>
                     <div className="grid gap-2">
-                      {notifications.length > 0 ? notifications.map(n => (
-                        <div key={n.id} className="text-sm">
-                          <span className="font-semibold">{n.name}</span> {language === 'zh' ? '預約了' : 'booked'} {t.rooms.roomNames[n.room.name]}
-                        </div>
-                      )) : <p className="text-sm text-muted-foreground">{t.notifications.noNew}</p>}
+                      {notifications.length > 0 ? notifications.map(n => {
+                        // Parse notes to get user name
+                        let userName = 'Unknown';
+                        try {
+                          const notes = JSON.parse(n.notes || '{}');
+                          userName = notes.name || 'Unknown';
+                        } catch (e) {
+                          console.error('Failed to parse booking notes:', e);
+                        }
+
+                        // Find room by room_id
+                        const room = rooms.find(r => r.id === n.room_id);
+                        const roomName = room ? t.rooms.roomNames[room.name] : `Room ${n.room_id}`;
+
+                        return (
+                          <div key={n.id} className="text-sm">
+                            <span className="font-semibold">{userName}</span> {language === 'zh' ? '預約了' : 'booked'} {roomName}
+                          </div>
+                        );
+                      }) : <p className="text-sm text-muted-foreground">{t.notifications.noNew}</p>}
                     </div>
                   </div>
                 </PopoverContent>
