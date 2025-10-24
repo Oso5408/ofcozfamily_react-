@@ -93,27 +93,36 @@ export const ProfileSection = () => {
               {t.dashboard.welcome}, {user.name}
             </h1>
             <p className="text-amber-600">{user.email}</p>
-            <div className="flex items-center space-x-4 mt-2">
+            <div className="flex flex-wrap items-center gap-3 mt-3">
               <div className="token-badge">
                 <span className="token-icon"></span>
                 {user.tokens || 0} {language === 'zh' ? '代幣' : 'Tokens'}
               </div>
-              {user.isAdmin && (
-                <Link 
-                  to="/admin"
-                  className="text-sm bg-amber-100 text-amber-800 px-3 py-1 rounded-full hover:bg-amber-200 transition-colors"
-                >
-                  {language === 'zh' ? '管理後台' : 'Admin Panel'}
-                </Link>
-              )}
+              <div className="flex gap-2">
+                <div className="px-3 py-1.5 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 rounded-full text-sm font-semibold">
+                  BR15: {user.br15_balance || 0}
+                </div>
+                <div className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-700 rounded-full text-sm font-semibold">
+                  BR30: {user.br30_balance || 0}
+                </div>
+              </div>
             </div>
-             <div className="flex items-center space-x-2 text-sm text-amber-600 mt-2">
-                <CalendarCheck className="w-4 h-4" />
-                <span>{t.dashboard.validUntil.replace('{date}', tokenValidDate)}</span>
-            </div>
-            <p className="text-sm text-amber-600 mt-1">
+            <p className="text-sm text-amber-600 mt-2">
               {t.dashboard.topUpMessage}
             </p>
+            <div className="mt-1">
+              <p className="text-xs text-amber-500">
+                {t.dashboard.validUntil.replace('{date}', tokenValidDate)}
+              </p>
+            </div>
+            {user.isAdmin && (
+              <Link
+                to="/admin"
+                className="text-sm bg-amber-100 text-amber-800 px-3 py-1 rounded-full hover:bg-amber-200 transition-colors inline-block mt-2"
+              >
+                {language === 'zh' ? '管理後台' : 'Admin Panel'}
+              </Link>
+            )}
           </div>
         </div>
         

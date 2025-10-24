@@ -19,7 +19,7 @@ export const BookingPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { user, updateUserTokens } = useAuth();
+  const { user, updateUserTokens, deductBRBalance } = useAuth();
   const t = translations[language];
   
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -214,13 +214,46 @@ export const BookingPage = () => {
         return;
       }
 
-      // If token booking, deduct tokens
+      // If token booking, deduct tokens or BR balance
       if (bookingData.bookingType === 'token' && !user?.isAdmin) {
-        await updateUserTokens(user.id, user.tokens - requiredTokens);
-        toast({
-          title: t.booking.tokensDeducted,
-          description: t.booking.tokensDeductedDesc.replace('{count}', requiredTokens)
+        console.log('💳 Processing payment:', {
+          selectedBRPackage: bookingData.selectedBRPackage,
+          requiredTokens
         });
+
+        if (bookingData.selectedBRPackage) {
+          // Deduct from BR balance
+          console.log('🎫 Deducting from BR package:', bookingData.selectedBRPackage);
+          const brResult = await deductBRBalance(user.id, requiredTokens, bookingData.selectedBRPackage);
+
+          if (!brResult.success) {
+            console.error('❌ BR deduction failed:', brResult.error);
+            toast({
+              title: language === 'zh' ? 'BR 餘額不足' : 'Insufficient BR Balance',
+              description: brResult.error,
+              variant: 'destructive'
+            });
+            // Delete the booking since payment failed
+            await bookingService.deleteBooking(result.booking.id);
+            return;
+          }
+
+          console.log('✅ BR balance deducted successfully');
+          toast({
+            title: language === 'zh' ? 'BR 已扣除' : 'BR Deducted',
+            description: language === 'zh'
+              ? `已從 ${bookingData.selectedBRPackage} 扣除 ${requiredTokens} BR`
+              : `${requiredTokens} BR deducted from ${bookingData.selectedBRPackage}`
+          });
+        } else {
+          // Deduct from regular tokens
+          console.log('🪙 Deducting from regular tokens');
+          await updateUserTokens(user.id, user.tokens - requiredTokens);
+          toast({
+            title: t.booking.tokensDeducted,
+            description: t.booking.tokensDeductedDesc.replace('{count}', requiredTokens)
+          });
+        }
       }
 
       // Show success message

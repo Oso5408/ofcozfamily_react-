@@ -168,6 +168,33 @@ export const userService = {
   },
 
   /**
+   * Delete user (admin only)
+   */
+  async deleteUser(userId) {
+    try {
+      // First delete from auth
+      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+
+      if (authError) {
+        // If auth deletion fails, try to at least delete the profile
+        console.warn('Auth deletion failed, proceeding with profile deletion:', authError);
+      }
+
+      // Delete user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
    * Subscribe to user profile changes
    */
   subscribeToUserProfile(userId, callback) {

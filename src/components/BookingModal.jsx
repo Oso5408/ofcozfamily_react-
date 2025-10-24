@@ -18,9 +18,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { translations } from '@/data/translations';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { generateTimeOptions, generateEndTimeOptions, checkDailySlotConflict } from '@/lib/timeUtils';
+import { MultiStepBookingForm } from '@/components/MultiStepBookingForm';
 
 export const BookingModal = ({
   isOpen,
@@ -40,6 +40,7 @@ export const BookingModal = ({
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [purposeError, setPurposeError] = useState(false);
+  const [noSpecialRequests, setNoSpecialRequests] = useState(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
@@ -194,7 +195,16 @@ export const BookingModal = ({
 
   const requiredTokens = calculateRequiredTokens();
   const userTokens = user?.tokens || 0;
-  const hasEnoughTokens = user?.isAdmin || userTokens >= requiredTokens;
+
+  // Check BR balance based on selected package
+  const getBRBalance = () => {
+    if (!bookingData.selectedBRPackage) return 0;
+    return bookingData.selectedBRPackage === 'BR15'
+      ? (user?.br15_balance || 0)
+      : (user?.br30_balance || 0);
+  };
+
+  const hasEnoughTokens = user?.isAdmin || (bookingData.selectedBRPackage ? getBRBalance() >= requiredTokens : userTokens >= requiredTokens);
   const totalPrice = calculatePrice();
   
   const handleMonthlyInquiry = (e) => {
@@ -249,7 +259,23 @@ export const BookingModal = ({
           )}
         </DialogHeader>
 
-        <form onSubmit={handleFormSubmit}>
+        {bookingData.bookingType === 'cash' ? (
+          <MultiStepBookingForm
+            selectedRoom={selectedRoom}
+            bookingData={bookingData}
+            setBookingData={setBookingData}
+            onSubmit={onSubmit}
+            onClose={onClose}
+            businessPurposes={businessPurposes}
+            handlePurposeChange={handlePurposeChange}
+            showOtherPurposeInput={showOtherPurposeInput}
+            noSpecialRequests={noSpecialRequests}
+            setNoSpecialRequests={setNoSpecialRequests}
+            purposeError={purposeError}
+            totalPrice={totalPrice}
+          />
+        ) : (
+          <form onSubmit={handleFormSubmit}>
           <div className="space-y-4 py-4">
             <div><Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label><Input id="name" value={bookingData.name} onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="email" className="text-amber-800">{t.booking.email}</Label><Input id="email" type="email" value={bookingData.email} onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
@@ -264,15 +290,46 @@ export const BookingModal = ({
               
               <TabsContent value="token" className="pt-4">
                 {user && !user.isAdmin && (
-                  <div className="p-4 bg-amber-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-amber-800 font-medium">{t.dashboard.myTokens}</span>
-                      <span className="token-badge"><span className="token-icon"></span>{userTokens}</span>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-amber-200">
+                      <h4 className="text-amber-800 font-semibold mb-3">{t.booking.selectPackage}</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setBookingData(prev => ({...prev, selectedBRPackage: 'BR15'}))}
+                          className={`p-3 rounded-lg border-2 transition-all ${
+                            bookingData.selectedBRPackage === 'BR15'
+                              ? 'border-blue-500 bg-blue-100'
+                              : 'border-gray-300 bg-white hover:border-blue-300'
+                          }`}
+                        >
+                          <div className="text-sm font-semibold text-blue-700">{t.booking.br15Package}</div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {t.booking.br15Balance.replace('{balance}', user.br15_balance || 0)}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBookingData(prev => ({...prev, selectedBRPackage: 'BR30'}))}
+                          className={`p-3 rounded-lg border-2 transition-all ${
+                            bookingData.selectedBRPackage === 'BR30'
+                              ? 'border-purple-500 bg-purple-100'
+                              : 'border-gray-300 bg-white hover:border-purple-300'
+                          }`}
+                        >
+                          <div className="text-sm font-semibold text-purple-700">{t.booking.br30Package}</div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {t.booking.br30Balance.replace('{balance}', user.br30_balance || 0)}
+                          </div>
+                        </button>
+                      </div>
                     </div>
-                    {requiredTokens > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-amber-700">{t.booking.tokensRequired.replace('{count}', requiredTokens)}</span>
-                        {!hasEnoughTokens && (<span className="text-red-600 text-sm font-medium">{t.booking.insufficientTokens}</span>)}
+                    {requiredTokens > 0 && bookingData.selectedBRPackage && (
+                      <div className="p-4 bg-amber-50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-700">{t.booking.brCost.replace('{count}', requiredTokens)}</span>
+                          {!hasEnoughTokens && (<span className="text-red-600 text-sm font-medium">{t.booking.insufficientBr}</span>)}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -400,7 +457,7 @@ export const BookingModal = ({
                     </form>
                   </TabsContent>
                 </Tabs>
-                {totalPrice > 0 && (
+                {totalPrice > 0 && bookingData.rentalType !== 'monthly' && (
                   <div className="p-4 bg-blue-50 rounded-lg mt-4">
                     <div className="flex items-center justify-between">
                       <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
@@ -440,10 +497,16 @@ export const BookingModal = ({
                 {t.booking.purpose} <span className="text-red-500">*</span>
               </Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                {businessPurposes.map(purpose => (
-                  <div key={purpose} className="flex items-center space-x-2">
-                    <Checkbox id={`purpose-${purpose}`} checked={Array.isArray(bookingData.purpose) && bookingData.purpose.includes(purpose)} onCheckedChange={(checked) => handlePurposeChange(purpose, checked)} />
-                    <Label htmlFor={`purpose-${purpose}`} className="text-sm font-medium text-amber-700">{t.booking.businessPurposes[purpose] || purpose}</Label>
+                {businessPurposes.map((purpose, index) => (
+                  <div key={`${purpose}-${index}`} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`purpose-${purpose}-${index}`}
+                      checked={Array.isArray(bookingData.purpose) && bookingData.purpose.includes(purpose)}
+                      onCheckedChange={(checked) => handlePurposeChange(purpose, checked)}
+                    />
+                    <Label htmlFor={`purpose-${purpose}-${index}`} className="text-sm font-medium text-amber-700 cursor-pointer">
+                      {t.booking.businessPurposes[purpose] || purpose}
+                    </Label>
                   </div>
                 ))}
               </div>
@@ -459,7 +522,38 @@ export const BookingModal = ({
               )}
             </div>
             
-            <div><Label htmlFor="requests" className="text-amber-800">{t.booking.specialRequests}</Label><Textarea id="requests" value={bookingData.specialRequests} onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })} placeholder={t.booking.specialRequestsPlaceholderUpdated} className="border-amber-200 focus:border-amber-400 placeholder-gray-400" /></div>
+            <div>
+              <Label htmlFor="requests" className="text-amber-800">
+                {t.booking.specialRequests} <span className="text-red-500">*</span>
+              </Label>
+              <div className="flex items-center space-x-2 mb-2">
+                <Checkbox
+                  id="no-special-requests"
+                  checked={noSpecialRequests}
+                  onCheckedChange={(checked) => {
+                    setNoSpecialRequests(checked);
+                    if (checked) {
+                      setBookingData({ ...bookingData, specialRequests: '不需要' });
+                    } else {
+                      setBookingData({ ...bookingData, specialRequests: '' });
+                    }
+                  }}
+                />
+                <Label htmlFor="no-special-requests" className="text-sm font-medium text-amber-700 cursor-pointer">
+                  {language === 'zh' ? '不需要' : 'Not needed'}
+                </Label>
+              </div>
+              {!noSpecialRequests && (
+                <Textarea
+                  id="requests"
+                  required
+                  value={bookingData.specialRequests}
+                  onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
+                  placeholder={t.booking.specialRequestsPlaceholderUpdated}
+                  className="border-amber-200 focus:border-amber-400 placeholder-gray-400"
+                />
+              )}
+            </div>
             
             <div className="flex items-start space-x-2">
               <Checkbox id="terms" checked={bookingData.agreedToTerms} onCheckedChange={(checked) => setBookingData({ ...bookingData, agreedToTerms: checked })} />
@@ -477,9 +571,6 @@ export const BookingModal = ({
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.452-4.433-9.888-9.888-9.888-5.452 0-9.887 4.434-9.889 9.887-.001 2.225.651 4.315 1.919 6.066l-1.288 4.725 4.839-1.282z"/></svg>
                 {t.booking.whatsappLink}: 6623 8788
               </a>
-              <a href="mailto:ofcozfamily@gmail.com" className="flex items-center text-blue-600 hover:underline">
-                <Mail className="w-4 h-4 mr-2"/>{t.booking.emailLink}: ofcozfamily@gmail.com
-              </a>
             </div>
           </Card>
 
@@ -490,6 +581,7 @@ export const BookingModal = ({
             <Button type="submit" disabled={(bookingData.bookingType === 'token' && !hasEnoughTokens) || !bookingData.agreedToTerms} className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">{t.booking.confirm}</Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

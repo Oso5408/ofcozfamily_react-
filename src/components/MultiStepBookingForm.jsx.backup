@@ -1,0 +1,543 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from "@/components/ui/checkbox";
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Card } from '@/components/ui/card';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { translations } from '@/data/translations';
+import { Upload, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { generateTimeOptions, generateEndTimeOptions } from '@/lib/timeUtils';
+
+// QR Code base64 data
+const QR_CODE_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wgARCANYAlcDASIAAhEBAxEB";
+
+export const MultiStepBookingForm = ({
+  selectedRoom,
+  bookingData,
+  setBookingData,
+  onSubmit,
+  onClose,
+  businessPurposes,
+  handlePurposeChange,
+  showOtherPurposeInput,
+  noSpecialRequests,
+  setNoSpecialRequests,
+  purposeError,
+  totalPrice,
+}) => {
+  const { language } = useLanguage();
+  const t = translations[language];
+  const [currentStep, setCurrentStep] = useState(1);
+  const [receiptImage, setReceiptImage] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+  const [timeOptions, setTimeOptions] = useState([]);
+  const [endTimeOptions, setEndTimeOptions] = useState([]);
+  const [loadingEndTimes, setLoadingEndTimes] = useState(false);
+
+  const steps = [
+    { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
+    { label: language === 'zh' ? '付款方式' : 'Payment Method' },
+    { label: language === 'zh' ? '上傳收據' : 'Upload Receipt' },
+  ];
+
+  // Fetch available time slots when date or room changes
+  useEffect(() => {
+    const fetchTimeOptions = async () => {
+      if (!bookingData.date || !selectedRoom?.id) {
+        setTimeOptions([]);
+        return;
+      }
+
+      try {
+        const options = await generateTimeOptions(bookingData.date, selectedRoom.id);
+        setTimeOptions(options);
+      } catch (error) {
+        console.error('Error fetching time options:', error);
+      }
+    };
+
+    fetchTimeOptions();
+  }, [bookingData.date, selectedRoom?.id]);
+
+  // Fetch available end time options when start time, date, or room changes
+  useEffect(() => {
+    const fetchEndTimeOptions = async () => {
+      if (!bookingData.date || !selectedRoom?.id || !bookingData.startTime) {
+        setEndTimeOptions([]);
+        return;
+      }
+
+      setLoadingEndTimes(true);
+      try {
+        const options = await generateEndTimeOptions(
+          bookingData.date,
+          selectedRoom.id,
+          bookingData.startTime
+        );
+        setEndTimeOptions(options);
+      } catch (error) {
+        console.error('Error fetching end time options:', error);
+      } finally {
+        setLoadingEndTimes(false);
+      }
+    };
+
+    fetchEndTimeOptions();
+  }, [bookingData.date, bookingData.startTime, selectedRoom?.id]);
+
+  const handleNext = () => {
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleReceiptUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setReceiptImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const validateStep1 = () => {
+    if (!bookingData.name || !bookingData.email || !bookingData.phone || !bookingData.date) {
+      return false;
+    }
+
+    // Validate time selection (hourly only)
+    if (!bookingData.startTime || !bookingData.endTime) {
+      return false;
+    }
+
+    if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
+      return false;
+    }
+    if (!noSpecialRequests && !bookingData.specialRequests) {
+      return false;
+    }
+    return true;
+  };
+
+  const handleMonthlyInquiry = () => {
+    const message = language === 'zh'
+      ? `你好，我想查詢月租服務。`
+      : `Hi, I'd like to inquire about monthly rental.`;
+    const whatsappUrl = `https://web.whatsapp.com/send/?phone=85266238788&text=${encodeURIComponent(message)}&type=phone_number&app_absent=0`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // Step 1: Booking Details
+  const renderStep1 = () => (
+    <div className="space-y-4">
+      {/* Rental Type Selection */}
+      <Tabs
+        value={bookingData.rentalType || 'hourly'}
+        onValueChange={(val) => setBookingData(prev => ({...prev, rentalType: val, startTime: '', endTime: ''}))}
+        className="w-full"
+      >
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
+          <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="monthly" className="pt-4">
+          <Card className="p-6 bg-amber-50 border-amber-200">
+            <h4 className="font-semibold text-amber-800 mb-3">
+              {language === 'zh' ? '月租服務' : 'Monthly Rental Service'}
+            </h4>
+            <p className="text-sm text-amber-700 mb-4">
+              {language === 'zh'
+                ? '月租服務請直接透過 WhatsApp 聯絡我們查詢，我們會為您提供詳細資訊及報價。'
+                : 'For monthly rentals, please contact us directly via WhatsApp. We will provide detailed information and pricing.'}
+            </p>
+            <Button
+              type="button"
+              onClick={handleMonthlyInquiry}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+            >
+              {t.booking.contactUs}
+            </Button>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="hourly" className="pt-4">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label>
+              <Input
+                id="name"
+                value={bookingData.name}
+                onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })}
+                className="border-amber-200 focus:border-amber-400"
+              />
+            </div>
+
+      <div>
+        <Label htmlFor="email" className="text-amber-800">{t.booking.email}</Label>
+        <Input
+          id="email"
+          type="email"
+          value={bookingData.email}
+          onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })}
+          className="border-amber-200 focus:border-amber-400"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="phone" className="text-amber-800">{t.booking.phone}</Label>
+        <Input
+          id="phone"
+          required
+          value={bookingData.phone}
+          onChange={(e) => setBookingData({ ...bookingData, phone: e.target.value })}
+          className="border-amber-200 focus:border-amber-400"
+        />
+      </div>
+
+      <div>
+        <Label className="text-amber-800">{t.booking.date}</Label>
+        <Input
+          type="date"
+          value={bookingData.date || ''}
+          onChange={(e) => setBookingData({ ...bookingData, date: e.target.value, startTime: '', endTime: '' })}
+          className="border-amber-200 focus:border-amber-400"
+          min={new Date().toISOString().split('T')[0]}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-amber-800">{t.booking.startTime}</Label>
+          <Select
+            value={bookingData.startTime || ''}
+            onValueChange={(value) => {
+              setBookingData({ ...bookingData, startTime: value, endTime: '' });
+            }}
+          >
+            <SelectTrigger disabled={!bookingData.date}>
+              <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Please select date first')} />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                <SelectItem key={time} value={time}>{time}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-amber-800">{t.booking.endTime}</Label>
+          <Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}>
+            <SelectTrigger disabled={!bookingData.startTime}>
+              <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {loadingEndTimes ? (
+                <SelectItem value="loading" disabled>{language === 'zh' ? '載入中...' : 'Loading...'}</SelectItem>
+              ) : (
+                endTimeOptions.map(time => (
+                  <SelectItem key={time} value={time}>{time}</SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label>
+        <Input
+          id="guests"
+          type="number"
+          min="1"
+          max={selectedRoom?.capacity}
+          value={bookingData.guests}
+          onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })}
+          className="border-amber-200 focus:border-amber-400"
+        />
+      </div>
+
+      <div id="purpose-section">
+        <Label className="text-amber-800">
+          {t.booking.purpose} <span className="text-red-500">*</span>
+        </Label>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+          {businessPurposes.map((purpose, index) => (
+            <div key={`${purpose}-${index}`} className="flex items-center space-x-2">
+              <Checkbox
+                id={`purpose-${purpose}-${index}`}
+                checked={Array.isArray(bookingData.purpose) && bookingData.purpose.includes(purpose)}
+                onCheckedChange={(checked) => handlePurposeChange(purpose, checked)}
+              />
+              <Label htmlFor={`purpose-${purpose}-${index}`} className="text-sm font-medium text-amber-700 cursor-pointer">
+                {t.booking.businessPurposes[purpose] || purpose}
+              </Label>
+            </div>
+          ))}
+        </div>
+        {purposeError && (
+          <p className="text-red-500 text-sm mt-2">
+            {language === 'zh' ? '請選擇至少一項業務性質' : 'Please select at least one purpose'}
+          </p>
+        )}
+        {showOtherPurposeInput && (
+          <div className="mt-2">
+            <Textarea
+              id="other-purpose"
+              value={bookingData.otherPurpose || ''}
+              onChange={(e) => setBookingData({ ...bookingData, otherPurpose: e.target.value })}
+              placeholder={t.booking.otherPurposePlaceholder}
+              className="border-amber-200 focus:border-amber-400"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <Label htmlFor="requests" className="text-amber-800">
+          {t.booking.specialRequests} <span className="text-red-500">*</span>
+        </Label>
+        <div className="flex items-center space-x-2 mb-2">
+          <Checkbox
+            id="no-special-requests"
+            checked={noSpecialRequests}
+            onCheckedChange={(checked) => {
+              setNoSpecialRequests(checked);
+              if (checked) {
+                setBookingData({ ...bookingData, specialRequests: '不需要' });
+              } else {
+                setBookingData({ ...bookingData, specialRequests: '' });
+              }
+            }}
+          />
+          <Label htmlFor="no-special-requests" className="text-sm font-medium text-amber-700 cursor-pointer">
+            {language === 'zh' ? '不需要' : 'Not needed'}
+          </Label>
+        </div>
+        {!noSpecialRequests && (
+          <Textarea
+            id="requests"
+            required
+            value={bookingData.specialRequests}
+            onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
+            placeholder={t.booking.specialRequestsPlaceholderUpdated}
+            className="border-amber-200 focus:border-amber-400 placeholder-gray-400"
+          />
+        )}
+      </div>
+
+            {totalPrice > 0 && (
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+
+  // Step 2: Payment Information
+  const renderStep2 = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-2xl font-bold text-amber-800 mb-4">
+          {language === 'zh' ? '付款方式' : 'Payment Method'}
+        </h3>
+        <p className="text-amber-700 mb-6">
+          {language === 'zh' ? '請使用以下方式付款' : 'Please pay using one of the following methods'}
+        </p>
+      </div>
+
+      <Card className="p-6 bg-white border-2 border-amber-200">
+        <div className="text-center mb-6">
+          <h4 className="text-xl font-bold text-amber-900 mb-4">Ofcoz Family Limited</h4>
+          <img
+            src={`data:image/jpeg;base64,${QR_CODE_BASE64}`}
+            alt="FPS QR Code"
+            className="mx-auto w-64 h-64 object-contain mb-4"
+          />
+          <p className="text-lg font-semibold text-amber-800 mb-2">
+            {language === 'zh' ? '掃描此 PayCode 以使用 FPS' : 'Scan my PayCode to FPS'}
+          </p>
+        </div>
+
+        <div className="space-y-4 text-left">
+          <div className="border-t border-amber-200 pt-4">
+            <h5 className="font-bold text-amber-900 mb-3">
+              {language === 'zh' ? '1）恒生銀行' : '1) Hang Seng Bank'}
+            </h5>
+            <p className="text-amber-800 font-mono text-lg">244-883757-883</p>
+          </div>
+
+          <div className="border-t border-amber-200 pt-4">
+            <h5 className="font-bold text-amber-900 mb-3">
+              {language === 'zh' ? '2）轉數快 FPS' : '2) FPS (Faster Payment System)'}
+            </h5>
+            <p className="text-amber-800 mb-1">
+              {language === 'zh' ? '恒生銀行' : 'Hang Seng Bank'}
+            </p>
+            <p className="text-amber-800 font-mono text-lg">6623 8788</p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="bg-amber-50 p-4 rounded-lg">
+        <p className="text-amber-800 font-semibold">
+          {language === 'zh' ? '總金額：' : 'Total Amount: '}
+          <span className="text-2xl">HK${totalPrice}</span>
+        </p>
+      </div>
+    </div>
+  );
+
+  // Step 3: Upload Receipt
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-2xl font-bold text-amber-800 mb-4">
+          {language === 'zh' ? '上傳付款證明' : 'Upload Payment Receipt'}
+        </h3>
+        <p className="text-amber-700 mb-6">
+          {language === 'zh'
+            ? '請上傳付款收據或截圖作為付款證明'
+            : 'Please upload your payment receipt or screenshot as proof'}
+        </p>
+      </div>
+
+      <div className="border-2 border-dashed border-amber-300 rounded-lg p-8 text-center">
+        <input
+          type="file"
+          id="receipt-upload"
+          accept="image/*"
+          onChange={handleReceiptUpload}
+          className="hidden"
+        />
+        <label htmlFor="receipt-upload" className="cursor-pointer">
+          {receiptPreview ? (
+            <div className="space-y-4">
+              <img
+                src={receiptPreview}
+                alt="Receipt Preview"
+                className="mx-auto max-h-64 rounded-lg"
+              />
+              <div className="flex items-center justify-center text-green-600">
+                <Check className="w-6 h-6 mr-2" />
+                <span className="font-semibold">
+                  {language === 'zh' ? '已上傳' : 'Uploaded'}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setReceiptImage(null);
+                  setReceiptPreview(null);
+                }}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                {language === 'zh' ? '更換圖片' : 'Change Image'}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Upload className="w-16 h-16 mx-auto text-amber-500" />
+              <p className="text-amber-800 font-semibold">
+                {language === 'zh' ? '點擊上傳收據' : 'Click to Upload Receipt'}
+              </p>
+              <p className="text-sm text-amber-600">
+                {language === 'zh' ? '支援 JPG、PNG 格式' : 'Supports JPG, PNG format'}
+              </p>
+            </div>
+          )}
+        </label>
+      </div>
+
+      <div className="bg-amber-50 p-4 rounded-lg">
+        <p className="text-sm text-amber-700">
+          {language === 'zh'
+            ? '提示：請確保收據清晰可見，包含交易日期、金額及參考編號。'
+            : 'Note: Please ensure the receipt is clear and shows the transaction date, amount, and reference number.'}
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <ProgressBar currentStep={currentStep} steps={steps} />
+
+      <div className="min-h-[500px]">
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+      </div>
+
+      <div className="flex justify-between pt-6 border-t border-amber-200">
+        {currentStep === 1 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            {language === 'zh' ? '返回' : 'Back'}
+          </Button>
+        )}
+        {currentStep > 1 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleBack}
+            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            {language === 'zh' ? '上一步' : 'Previous'}
+          </Button>
+        )}
+
+        {currentStep < 3 ? (
+          <Button
+            type="button"
+            onClick={handleNext}
+            disabled={currentStep === 1 && !validateStep1()}
+            className="ml-auto bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+          >
+            {language === 'zh' ? '下一步' : 'Next'}
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            onClick={(e) => {
+              // Attach receipt image to booking data before submitting
+              setBookingData(prev => ({ ...prev, receiptImage: receiptImage }));
+              onSubmit(e);
+            }}
+            disabled={!receiptImage}
+            className="ml-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+          >
+            {language === 'zh' ? '確認預約' : 'Confirm Booking'}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};

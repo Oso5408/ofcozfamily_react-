@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/popover"
 import { bookingService } from '@/services/bookingService';
 import { roomService } from '@/services/roomService';
+import { userService } from '@/services/userService';
 
 export const AdminPage = () => {
   const { user, logout } = useAuth();
@@ -88,7 +89,17 @@ export const AdminPage = () => {
           setRooms(initialRoomsData);
         }
 
-        // Still need to get reviews and users from localStorage for now
+        // Fetch all users from Supabase
+        const usersResult = await userService.getAllUsers();
+        if (usersResult.success) {
+          console.log('👥 Loaded users from Supabase:', usersResult.users.length);
+          console.log('👥 Sample user:', usersResult.users[0]);
+          setUsers(usersResult.users);
+        } else {
+          console.error('❌ Failed to load users:', usersResult.error);
+        }
+
+        // Still need to get reviews from localStorage for now
         const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
         setReviews(allReviews);
 
@@ -336,7 +347,7 @@ export const AdminPage = () => {
                 <AdminBookingsTab bookings={filteredBookings} setBookings={setBookings} users={users} setUsers={setUsers} filterStatus={filterStatus} />
               )}
               {activeTab === 'users' && (
-                <AdminUsersTab onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} />
+                <AdminUsersTab users={users} setUsers={setUsers} onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} />
               )}
               {activeTab === 'reviews' && (
                 <ReviewsTab bookings={bookings} reviews={reviews} setReviews={setReviews} isAdmin={true} />

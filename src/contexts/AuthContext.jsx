@@ -200,6 +200,163 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const assignBRPackage = async (userId, packageType, adminId) => {
+    try {
+      console.log('🎫 Assigning BR package:', { userId, packageType, adminId });
+      const brAmount = packageType === 'BR15' ? 15 : 30;
+      const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
+
+      // Get current user data
+      console.log('📖 Fetching current balance...');
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select(balanceField)
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('✅ Current data:', userData);
+      const currentBalance = userData[balanceField] || 0;
+      const newBalance = currentBalance + brAmount;
+      console.log('💰 Balance update:', { currentBalance, newBalance });
+
+      // Update user balance
+      console.log('💾 Updating user balance...');
+      const { data: updatedUsers, error: updateError } = await supabase
+        .from('users')
+        .update({ [balanceField]: newBalance })
+        .eq('id', userId)
+        .select();
+
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Update response:', updatedUsers);
+
+      // Get the updated user (might be array or single object)
+      const updatedUser = Array.isArray(updatedUsers) && updatedUsers.length > 0
+        ? updatedUsers[0]
+        : updatedUsers;
+
+      console.log('✅ User updated:', updatedUser);
+
+      // If no data returned, fetch the user again
+      if (!updatedUser) {
+        console.log('⚠️ No data returned from update, fetching user...');
+        const { data: fetchedUser, error: refetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (refetchError) {
+          console.error('❌ Refetch error:', refetchError);
+          // Still continue - update likely succeeded
+          console.log('ℹ️ Continuing anyway - update likely succeeded');
+        } else {
+          console.log('✅ Refetched user:', fetchedUser);
+          return { success: true, profile: fetchedUser };
+        }
+      }
+
+      // Record in package history
+      console.log('📝 Recording in package history...');
+      const { error: historyError } = await supabase
+        .from('package_history')
+        .insert({
+          user_id: userId,
+          package_type: packageType,
+          br_amount: brAmount,
+          assigned_by: adminId
+        });
+
+      if (historyError) {
+        console.error('⚠️ History error (non-critical):', historyError);
+        // Don't throw - history is optional
+      } else {
+        console.log('✅ History recorded');
+      }
+
+      // Update local state if it's the current user
+      if (userId === user?.id) {
+        setProfile(updatedUser);
+      }
+
+      return { success: true, profile: updatedUser };
+    } catch (error) {
+      console.error('❌ Assign BR package error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const deductBRBalance = async (userId, brAmount, packageType) => {
+    try {
+      console.log('💳 Deducting BR balance:', { userId, brAmount, packageType });
+      const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
+      console.log('📊 Balance field:', balanceField);
+
+      // Get current balance
+      console.log('📖 Fetching current balance...');
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select(balanceField)
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('✅ User data:', userData);
+      const currentBalance = userData[balanceField] || 0;
+      console.log('💰 Current balance:', currentBalance, 'Required:', brAmount);
+
+      if (currentBalance < brAmount) {
+        console.error('❌ Insufficient balance!', { currentBalance, brAmount, difference: brAmount - currentBalance });
+        return { success: false, error: 'Insufficient BR balance' };
+      }
+
+      const newBalance = currentBalance - brAmount;
+      console.log('💰 New balance will be:', newBalance);
+
+      // Update balance
+      console.log('💾 Updating balance...');
+      const { data: updatedUsers, error: updateError } = await supabase
+        .from('users')
+        .update({ [balanceField]: newBalance })
+        .eq('id', userId)
+        .select();
+
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      const updatedUser = Array.isArray(updatedUsers) && updatedUsers.length > 0
+        ? updatedUsers[0]
+        : updatedUsers;
+
+      console.log('✅ Balance updated successfully:', updatedUser);
+
+      // Update local state if it's the current user
+      if (userId === user?.id) {
+        setProfile(updatedUser);
+      }
+
+      return { success: true, profile: updatedUser };
+    } catch (error) {
+      console.error('❌ Deduct BR balance error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const updateUserRole = async (userId, isAdmin) => {
     try {
       const result = await userService.updateUserRole(userId, isAdmin);
@@ -258,17 +415,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteUser = async (userId) => {
+    try {
+      const result = await userService.deleteUser(userId);
+      return result;
+    } catch (error) {
+      console.error('Delete user error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const value = {
     user: profile, // Return profile as user for compatibility
     login,
     register,
     updateUser,
     updateUserTokens,
+    assignBRPackage,
+    deductBRBalance,
     updateUserRole,
     changePassword,
     resetPassword,
     adminResetPassword,
     findUserByEmail,
+    deleteUser,
     logout,
     isLoading,
     // Additional Supabase-specific data

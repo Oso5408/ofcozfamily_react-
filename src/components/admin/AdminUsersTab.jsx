@@ -22,17 +22,27 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }) => {
-  const { user: adminUser, updateUserTokens, updateUser, deleteUser } = useAuth();
+  const { user: adminUser, updateUserTokens, assignBRPackage, updateUser, deleteUser } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const { toast } = useToast();
   const [tokenAmount, setTokenAmount] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedBRUserId, setSelectedBRUserId] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [profileData, setProfileData] = useState({ name: '', email: '', phone: '' });
   const [userToDelete, setUserToDelete] = useState(null);
 
   const safeUsers = users || [];
+
+  // Debug logs
+  console.log('👥 AdminUsersTab - All users:', users);
+  console.log('👥 AdminUsersTab - Safe users count:', safeUsers.length);
+  console.log('👥 AdminUsersTab - Sample user structure:', safeUsers[0]);
+
+  const nonAdminUsers = safeUsers.filter(u => !u.is_admin && !u.isAdmin);
+  console.log('👥 AdminUsersTab - Non-admin users:', nonAdminUsers);
+  console.log('👥 AdminUsersTab - Non-admin users count:', nonAdminUsers.length);
 
   const handleTokenUpdate = (userId, operation) => {
     const targetUser = safeUsers.find(u => u.id === userId);
@@ -41,13 +51,13 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
     const amount = parseInt(tokenAmount, 10);
     if (isNaN(amount) || amount <= 0) return;
 
-    const newTokenCount = operation === 'add' 
+    const newTokenCount = operation === 'add'
       ? (targetUser.tokens || 0) + amount
       : Math.max(0, (targetUser.tokens || 0) - amount);
 
     const updatedUser = updateUserTokens(userId, newTokenCount, operation === 'add');
 
-    const updatedUsersList = safeUsers.map(u => 
+    const updatedUsersList = safeUsers.map(u =>
       u.id === userId ? updatedUser : u
     );
     setUsers(updatedUsersList);
@@ -56,6 +66,59 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
       title: t.admin.tokensUpdated,
       description: t.admin.tokensUpdatedDesc
     });
+  };
+
+  const handleBRPackageAssignment = async (packageType) => {
+    console.log('🔘 BR Package button clicked:', packageType);
+    console.log('👤 Selected user ID:', selectedBRUserId);
+    console.log('👨‍💼 Admin user:', adminUser);
+    console.log('🆔 Admin user ID:', adminUser?.id);
+
+    if (!selectedBRUserId) {
+      console.error('❌ No user selected!');
+      toast({
+        title: language === 'zh' ? '請選擇用戶' : 'Please Select User',
+        description: language === 'zh' ? '請先選擇一個用戶' : 'Please select a user first',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!adminUser?.id) {
+      console.error('❌ No admin user ID!');
+      toast({
+        title: language === 'zh' ? '管理員錯誤' : 'Admin Error',
+        description: language === 'zh' ? '無法獲取管理員ID' : 'Cannot get admin ID',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    console.log('✅ Calling assignBRPackage...');
+    const result = await assignBRPackage(selectedBRUserId, packageType, adminUser.id);
+    console.log('📦 Result:', result);
+
+    if (result.success) {
+      console.log('✅ Success! Updating users list...');
+      const updatedUsersList = safeUsers.map(u =>
+        u.id === selectedBRUserId ? result.profile : u
+      );
+      setUsers(updatedUsersList);
+
+      toast({
+        title: language === 'zh' ? '套票已分配' : 'Package Assigned',
+        description: language === 'zh'
+          ? `已成功分配 ${packageType} 套票`
+          : `Successfully assigned ${packageType} package`
+      });
+    } else {
+      console.error('❌ Failed:', result.error);
+      toast({
+        title: language === 'zh' ? '分配失敗' : 'Assignment Failed',
+        description: result.error,
+        variant: 'destructive'
+      });
+    }
   };
 
   const startEdit = (user) => {
@@ -98,15 +161,22 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
             <Label className="text-amber-800">{language === 'zh' ? '選擇用戶' : 'Select User'}</Label>
             <select
               value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
+              onChange={(e) => {
+                console.log('🔄 Token dropdown changed:', e.target.value);
+                setSelectedUserId(e.target.value);
+              }}
               className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
             >
               <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
-              {safeUsers.filter(u => !u.isAdmin).map(user => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.email})
-                </option>
-              ))}
+              {nonAdminUsers.map(user => {
+                const userName = user.name || user.full_name || user.email;
+                console.log('📝 Rendering token dropdown option:', user.id, userName, user.email);
+                return (
+                  <option key={user.id} value={user.id}>
+                    {userName} ({user.email})
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -139,6 +209,71 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
             </Button>
           </div>
         </div>
+      </Card>
+
+      <Card className="p-6 mb-6 border-amber-200 bg-gradient-to-r from-purple-50 to-pink-50">
+        <h3 className="text-lg font-semibold text-amber-800 mb-4">
+          {language === 'zh' ? '分配 BR 套票' : 'Assign BR Packages'}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '選擇用戶' : 'Select User'}</Label>
+            <select
+              value={selectedBRUserId}
+              onChange={(e) => {
+                console.log('🔄 BR dropdown changed:', e.target.value);
+                setSelectedBRUserId(e.target.value);
+              }}
+              className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
+            >
+              <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
+              {nonAdminUsers.map(user => {
+                const userName = user.name || user.full_name || user.email;
+                console.log('📝 Rendering BR dropdown option:', user.id, userName, user.email);
+                return (
+                  <option key={user.id} value={user.id}>
+                    {userName} ({user.email})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div className="flex items-end space-x-2 md:col-span-2">
+            <Button
+              onClick={() => handleBRPackageAssignment('BR15')}
+              disabled={!selectedBRUserId}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              {language === 'zh' ? '分配 BR15 套票 (+15 BR)' : 'Assign BR15 Package (+15 BR)'}
+            </Button>
+            <Button
+              onClick={() => handleBRPackageAssignment('BR30')}
+              disabled={!selectedBRUserId}
+              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              {language === 'zh' ? '分配 BR30 套票 (+30 BR)' : 'Assign BR30 Package (+30 BR)'}
+            </Button>
+          </div>
+        </div>
+        {selectedBRUserId && (
+          <div className="mt-4 p-4 bg-white/50 rounded-md border border-amber-200">
+            <p className="text-sm text-amber-700">
+              <strong>{language === 'zh' ? '當前餘額：' : 'Current Balance:'}</strong>
+              {safeUsers.find(u => u.id === selectedBRUserId) && (
+                <>
+                  <span className="ml-2">
+                    BR15: {safeUsers.find(u => u.id === selectedBRUserId)?.br15_balance || 0} BR
+                  </span>
+                  <span className="ml-4">
+                    BR30: {safeUsers.find(u => u.id === selectedBRUserId)?.br30_balance || 0} BR
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        )}
       </Card>
 
       <div className="space-y-4">
@@ -180,7 +315,15 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                 <div className="flex items-center space-x-2 flex-wrap gap-2">
                   <div className="text-right">
                     <div className="token-badge mb-1"><span className="token-icon"></span>{user.tokens || 0} {language === 'zh' ? '代幣' : 'Tokens'}</div>
-                    <p className="text-xs text-amber-600">{t.dashboard.validUntil.replace('{date}', new Date(user.tokenValidUntil).toLocaleDateString())}</p>
+                    <div className="flex gap-2 text-xs">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                        BR15: {user.br15_balance || 0}
+                      </span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                        BR30: {user.br30_balance || 0}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-600 mt-1">{t.dashboard.validUntil.replace('{date}', new Date(user.tokenValidUntil).toLocaleDateString())}</p>
                   </div>
                   {adminUser.id !== user.id && (
                     <>
