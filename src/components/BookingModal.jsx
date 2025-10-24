@@ -329,10 +329,9 @@ export const BookingModal = ({
 
               <TabsContent value="cash" className="pt-4">
                 <Tabs value={bookingData.rentalType} onValueChange={(val) => setBookingData(prev => ({...prev, rentalType: val, startTime: '', endTime: ''}))} className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
                     <TabsTrigger value="daily">{t.booking.daily}</TabsTrigger>
-                    <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
                   </TabsList>
                   <TabsContent value="hourly" className="pt-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -408,12 +407,6 @@ export const BookingModal = ({
                         </SelectContent>
                       </Select>
                     </div>
-                  </TabsContent>
-                  <TabsContent value="monthly" className="pt-4">
-                    <form onSubmit={handleMonthlyInquiry} className="space-y-4">
-                      <p className='text-sm text-amber-700'>{language === 'zh' ? '月租服務請直接聯絡我們查詢。' : 'For monthly rentals, please contact us directly.'}</p>
-                      <Button type="submit" className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">{t.booking.contactUs}</Button>
-                    </form>
                   </TabsContent>
                 </Tabs>
                 {totalPrice > 0 && (
