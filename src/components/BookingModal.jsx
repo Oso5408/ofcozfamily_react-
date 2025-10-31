@@ -349,21 +349,6 @@ export const BookingModal = ({
               </TabsList>
               
               <TabsContent value="token" className="pt-4">
-                {/* DEBUG PANEL - Remove this after debugging */}
-                {user && !user.isAdmin && (
-                  <div className="p-4 bg-yellow-100 rounded-lg border-2 border-yellow-400 mb-4">
-                    <h4 className="font-bold text-yellow-800 mb-2">🐛 DEBUG INFO (remove later)</h4>
-                    <div className="text-xs space-y-1 text-yellow-900">
-                      <div>BR15 Balance: {user.br15_balance ?? 'undefined'}</div>
-                      <div>BR30 Balance: {user.br30_balance ?? 'undefined'}</div>
-                      <div>Regular Tokens: {user.tokens ?? 'undefined'}</div>
-                      <div>Selected Package: {bookingData.selectedBRPackage || 'None'}</div>
-                      <div>User ID: {user.id}</div>
-                      <div>Required Tokens: {calculateRequiredTokens()}</div>
-                    </div>
-                  </div>
-                )}
-
                 {user && !user.isAdmin && (
                   <div className="space-y-4">
                     {((user.br15_balance || 0) === 0 && (user.br30_balance || 0) === 0) && (
