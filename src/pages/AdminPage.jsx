@@ -8,10 +8,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Users, Calendar, List, Bell, Star } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, List, Bell, Star, Home } from 'lucide-react';
 import { AdminDashboardStats } from '@/components/admin/AdminDashboardStats';
 import { AdminBookingsTab } from '@/components/admin/AdminBookingsTab';
 import { AdminUsersTab } from '@/components/admin/AdminUsersTab';
+import { AdminRoomsTab } from '@/components/admin/AdminRoomsTab';
 import { BookingCalendar } from '@/components/admin/BookingCalendar';
 import { ReviewsTab } from '@/components/dashboard/ReviewsTab';
 import { roomsData as initialRoomsData } from '@/data/roomsData';
@@ -181,6 +182,13 @@ export const AdminPage = () => {
     }
   };
 
+  const handleRoomUpdate = (updatedRoom) => {
+    // Update the room in the local state
+    const updatedRooms = rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r);
+    setRooms(updatedRooms);
+    console.log('✅ Room updated in local state:', updatedRoom);
+  };
+
 
   const filteredBookings = bookings.filter(booking => {
     if (filterStatus === 'all') return true;
@@ -329,13 +337,24 @@ export const AdminPage = () => {
                <Button
                 onClick={() => setActiveTab('reviews')}
                 variant={activeTab === 'reviews' ? 'default' : 'outline'}
-                className={activeTab === 'reviews' 
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white' 
+                className={activeTab === 'reviews'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
                   : 'border-amber-300 text-amber-700'
                 }
               >
                 <Star className="w-4 h-4 mr-2" />
                 {language === 'zh' ? '評價管理' : 'Reviews'}
+              </Button>
+              <Button
+                onClick={() => setActiveTab('rooms')}
+                variant={activeTab === 'rooms' ? 'default' : 'outline'}
+                className={activeTab === 'rooms'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
+                  : 'border-amber-300 text-amber-700'
+                }
+              >
+                <Home className="w-4 h-4 mr-2" />
+                {language === 'zh' ? '房間管理' : 'Rooms'}
               </Button>
             </div>
 
@@ -351,6 +370,9 @@ export const AdminPage = () => {
               )}
               {activeTab === 'reviews' && (
                 <ReviewsTab bookings={bookings} reviews={reviews} setReviews={setReviews} isAdmin={true} />
+              )}
+              {activeTab === 'rooms' && (
+                <AdminRoomsTab rooms={rooms} onRoomUpdate={handleRoomUpdate} />
               )}
             </Card>
           </motion.div>

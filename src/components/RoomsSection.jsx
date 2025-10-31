@@ -44,9 +44,10 @@ const RoomCard = ({ room, index, t }) => {
     >
       <Card className="overflow-hidden glass-effect cat-shadow border-amber-200 h-full flex flex-col">
         <div className="relative">
-          <img  
+          <img
             className="w-full h-64 object-cover"
-            alt={`${room.name} - cat-friendly accommodation`} src={`https://source.unsplash.com/800x600/?workspace,cozy,${index+10}`} />
+            alt={`${room.name} - cat-friendly accommodation`}
+            src={room.image_url || `https://source.unsplash.com/800x600/?workspace,cozy,${index+10}`} />
         </div>
         
         <div className="p-6 flex flex-col flex-grow">
