@@ -133,8 +133,10 @@ export const BookingPage = () => {
         requiredTokens = hours;
         totalCost = hours;
 
-        // Check if user has enough tokens
-        if (!user?.isAdmin && user.tokens < requiredTokens) {
+        // Check if user has enough tokens (ONLY if not using BR package)
+        // If using BR package, the balance check happens in deductBRBalance()
+        if (!user?.isAdmin && !bookingData.selectedBRPackage && user.tokens < requiredTokens) {
+          console.log('⚠️ Insufficient regular tokens:', { required: requiredTokens, available: user.tokens });
           toast({
             title: t.booking.insufficientTokens,
             description: t.booking.insufficientTokensDesc
@@ -143,6 +145,35 @@ export const BookingPage = () => {
             variant: "destructive"
           });
           return;
+        }
+
+        // If using BR package, check BR balance instead
+        if (!user?.isAdmin && bookingData.selectedBRPackage) {
+          const brBalance = bookingData.selectedBRPackage === 'BR15'
+            ? (user?.br15_balance || 0)
+            : (user?.br30_balance || 0);
+
+          console.log('💰 Checking BR balance:', {
+            package: bookingData.selectedBRPackage,
+            balance: brBalance,
+            required: requiredTokens
+          });
+
+          if (brBalance < requiredTokens) {
+            const packageName = bookingData.selectedBRPackage === 'BR15'
+              ? (language === 'zh' ? 'BR15套票' : 'BR15 Package')
+              : (language === 'zh' ? 'BR30套票' : 'BR30 Package');
+
+            toast({
+              title: language === 'zh' ? 'BR 餘額不足' : 'Insufficient BR Balance',
+              description: language === 'zh'
+                ? `您的${packageName}餘額不足。此預約需要 ${requiredTokens} BR，但您只有 ${brBalance} BR。`
+                : `Your ${packageName} balance is insufficient. This booking requires ${requiredTokens} BR, but you only have ${brBalance} BR.`,
+              variant: 'destructive',
+              duration: 8000
+            });
+            return;
+          }
         }
       } else {
         // Cash booking: calculate price from room data
@@ -228,10 +259,20 @@ export const BookingPage = () => {
 
           if (!brResult.success) {
             console.error('❌ BR deduction failed:', brResult.error);
+            const currentBalance = bookingData.selectedBRPackage === 'BR15'
+              ? (user?.br15_balance || 0)
+              : (user?.br30_balance || 0);
+            const packageName = bookingData.selectedBRPackage === 'BR15'
+              ? (language === 'zh' ? 'BR15套票' : 'BR15 Package')
+              : (language === 'zh' ? 'BR30套票' : 'BR30 Package');
+
             toast({
               title: language === 'zh' ? 'BR 餘額不足' : 'Insufficient BR Balance',
-              description: brResult.error,
-              variant: 'destructive'
+              description: language === 'zh'
+                ? `您的${packageName}餘額不足。此預約需要 ${requiredTokens} BR，但您只有 ${currentBalance} BR。`
+                : `Your ${packageName} balance is insufficient. This booking requires ${requiredTokens} BR, but you only have ${currentBalance} BR.`,
+              variant: 'destructive',
+              duration: 8000
             });
             // Delete the booking since payment failed
             await bookingService.deleteBooking(result.booking.id);

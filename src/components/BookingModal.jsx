@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,8 +31,23 @@ export const BookingModal = ({
   onSubmit,
 }) => {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const t = translations[language];
+
+  // DEBUG: Log user object when modal opens
+  useEffect(() => {
+    if (isOpen && user) {
+      console.log('=== BOOKING MODAL DEBUG ===');
+      console.log('👤 User object:', user);
+      console.log('💰 BR15 Balance:', user.br15_balance);
+      console.log('💰 BR30 Balance:', user.br30_balance);
+      console.log('🪙 Token Balance:', user.tokens);
+      console.log('👑 Is Admin:', user.isAdmin);
+      console.log('📦 Selected BR Package:', bookingData.selectedBRPackage);
+      console.log('========================');
+    }
+  }, [isOpen, user, bookingData.selectedBRPackage]);
+
   const [showOtherPurposeInput, setShowOtherPurposeInput] = useState(false);
   const [timeOptions, setTimeOptions] = useState([]);
   const [endTimeOptions, setEndTimeOptions] = useState([]);
@@ -41,6 +56,7 @@ export const BookingModal = ({
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [purposeError, setPurposeError] = useState(false);
   const [noSpecialRequests, setNoSpecialRequests] = useState(false);
+  const hasRefreshedProfile = useRef(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
@@ -60,6 +76,50 @@ export const BookingModal = ({
       }));
     }
   }, [user, isOpen, setBookingData]);
+
+  // Refresh profile when modal opens to get latest BR balance (only once per open)
+  useEffect(() => {
+    if (isOpen) {
+      // Reset the flag when modal opens
+      hasRefreshedProfile.current = false;
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && user && !user.isAdmin && refreshProfile && !hasRefreshedProfile.current) {
+      console.log('🔄 Refreshing profile to get latest BR balance...');
+      hasRefreshedProfile.current = true;
+      refreshProfile().then(result => {
+        if (result.success) {
+          console.log('✅ Profile refreshed successfully:', result.profile);
+        } else {
+          console.error('❌ Failed to refresh profile:', result.error);
+        }
+      });
+    }
+  }, [isOpen, user?.id, refreshProfile]);
+
+  // Auto-select BR package with sufficient balance
+  useEffect(() => {
+    if (!user || user.isAdmin || bookingData.bookingType !== 'token') return;
+
+    const requiredTokens = calculateRequiredTokens();
+    if (requiredTokens === 0) return;
+
+    // Only auto-select if no package is currently selected
+    if (!bookingData.selectedBRPackage) {
+      const br15Available = user.br15_balance || 0;
+      const br30Available = user.br30_balance || 0;
+
+      // Auto-select the first package with sufficient balance
+      if (br15Available >= requiredTokens) {
+        setBookingData(prev => ({ ...prev, selectedBRPackage: 'BR15' }));
+      } else if (br30Available >= requiredTokens) {
+        setBookingData(prev => ({ ...prev, selectedBRPackage: 'BR30' }));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.br15_balance, user?.br30_balance, user?.isAdmin, bookingData.bookingType, bookingData.startTime, bookingData.endTime, bookingData.selectedBRPackage, bookingData.wantsProjector, selectedRoom?.id]);
 
   useEffect(() => {
     if (Array.isArray(bookingData.purpose)) {
@@ -289,38 +349,78 @@ export const BookingModal = ({
               </TabsList>
               
               <TabsContent value="token" className="pt-4">
+                {/* DEBUG PANEL - Remove this after debugging */}
+                {user && !user.isAdmin && (
+                  <div className="p-4 bg-yellow-100 rounded-lg border-2 border-yellow-400 mb-4">
+                    <h4 className="font-bold text-yellow-800 mb-2">🐛 DEBUG INFO (remove later)</h4>
+                    <div className="text-xs space-y-1 text-yellow-900">
+                      <div>BR15 Balance: {user.br15_balance ?? 'undefined'}</div>
+                      <div>BR30 Balance: {user.br30_balance ?? 'undefined'}</div>
+                      <div>Regular Tokens: {user.tokens ?? 'undefined'}</div>
+                      <div>Selected Package: {bookingData.selectedBRPackage || 'None'}</div>
+                      <div>User ID: {user.id}</div>
+                      <div>Required Tokens: {calculateRequiredTokens()}</div>
+                    </div>
+                  </div>
+                )}
+
                 {user && !user.isAdmin && (
                   <div className="space-y-4">
+                    {((user.br15_balance || 0) === 0 && (user.br30_balance || 0) === 0) && (
+                      <div className="p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+                        <p className="text-sm text-yellow-800">
+                          {language === 'zh'
+                            ? '⚠️ 您的 BR 套票餘額為 0。將使用一般 Token 進行預約。'
+                            : '⚠️ Your BR package balance is 0. Regular tokens will be used for booking.'}
+                        </p>
+                      </div>
+                    )}
                     <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-amber-200">
                       <h4 className="text-amber-800 font-semibold mb-3">{t.booking.selectPackage}</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
                           onClick={() => setBookingData(prev => ({...prev, selectedBRPackage: 'BR15'}))}
+                          disabled={(user.br15_balance || 0) === 0}
                           className={`p-3 rounded-lg border-2 transition-all ${
                             bookingData.selectedBRPackage === 'BR15'
                               ? 'border-blue-500 bg-blue-100'
+                              : (user.br15_balance || 0) === 0
+                              ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                               : 'border-gray-300 bg-white hover:border-blue-300'
                           }`}
                         >
-                          <div className="text-sm font-semibold text-blue-700">{t.booking.br15Package}</div>
-                          <div className="text-xs text-gray-600 mt-1">
+                          <div className={`text-sm font-semibold ${(user.br15_balance || 0) === 0 ? 'text-gray-400' : 'text-blue-700'}`}>
+                            {t.booking.br15Package}
+                          </div>
+                          <div className={`text-xs mt-1 ${(user.br15_balance || 0) === 0 ? 'text-gray-400' : 'text-gray-600'}`}>
                             {t.booking.br15Balance.replace('{balance}', user.br15_balance || 0)}
                           </div>
+                          {(user.br15_balance || 0) === 0 && (
+                            <div className="text-xs text-red-400 mt-1">{language === 'zh' ? '無餘額' : 'No balance'}</div>
+                          )}
                         </button>
                         <button
                           type="button"
                           onClick={() => setBookingData(prev => ({...prev, selectedBRPackage: 'BR30'}))}
+                          disabled={(user.br30_balance || 0) === 0}
                           className={`p-3 rounded-lg border-2 transition-all ${
                             bookingData.selectedBRPackage === 'BR30'
                               ? 'border-purple-500 bg-purple-100'
+                              : (user.br30_balance || 0) === 0
+                              ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                               : 'border-gray-300 bg-white hover:border-purple-300'
                           }`}
                         >
-                          <div className="text-sm font-semibold text-purple-700">{t.booking.br30Package}</div>
-                          <div className="text-xs text-gray-600 mt-1">
+                          <div className={`text-sm font-semibold ${(user.br30_balance || 0) === 0 ? 'text-gray-400' : 'text-purple-700'}`}>
+                            {t.booking.br30Package}
+                          </div>
+                          <div className={`text-xs mt-1 ${(user.br30_balance || 0) === 0 ? 'text-gray-400' : 'text-gray-600'}`}>
                             {t.booking.br30Balance.replace('{balance}', user.br30_balance || 0)}
                           </div>
+                          {(user.br30_balance || 0) === 0 && (
+                            <div className="text-xs text-red-400 mt-1">{language === 'zh' ? '無餘額' : 'No balance'}</div>
+                          )}
                         </button>
                       </div>
                     </div>

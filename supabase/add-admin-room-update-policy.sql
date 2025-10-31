@@ -13,6 +13,7 @@ DROP POLICY IF EXISTS "Authenticated users can manage rooms" ON public.rooms;
 -- Create new admin-only update policy
 CREATE POLICY "Admins can update rooms"
 ON public.rooms
+
 FOR UPDATE
 TO authenticated
 USING (

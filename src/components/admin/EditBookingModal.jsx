@@ -18,12 +18,39 @@ export const EditBookingModal = ({ isOpen, onClose, booking, onSave }) => {
   const { language } = useLanguage();
   const t = translations[language];
   const [editedBooking, setEditedBooking] = useState(booking);
+  const [timeOptions, setTimeOptions] = useState([]);
+  const [loadingTimes, setLoadingTimes] = useState(false);
 
   useEffect(() => {
     setEditedBooking(booking);
   }, [booking]);
 
-  const timeOptions = generateTimeOptions(editedBooking?.date, editedBooking?.room.id, editedBooking?.id);
+  // Fetch time options when date or room changes
+  useEffect(() => {
+    const fetchTimeOptions = async () => {
+      if (!editedBooking?.date || !editedBooking?.room?.id) {
+        setTimeOptions([]);
+        return;
+      }
+
+      setLoadingTimes(true);
+      try {
+        const options = await generateTimeOptions(
+          editedBooking.date,
+          editedBooking.room.id,
+          editedBooking.id
+        );
+        setTimeOptions(options || []);
+      } catch (error) {
+        console.error('Error fetching time options:', error);
+        setTimeOptions([]);
+      } finally {
+        setLoadingTimes(false);
+      }
+    };
+
+    fetchTimeOptions();
+  }, [editedBooking?.date, editedBooking?.room?.id, editedBooking?.id]);
 
   const handleSave = () => {
     onSave(editedBooking);
@@ -84,10 +111,22 @@ export const EditBookingModal = ({ isOpen, onClose, booking, onSave }) => {
                 value={editedBooking.startTime || ''}
                 onChange={(e) => setEditedBooking(prev => ({ ...prev, startTime: e.target.value, endTime: '' }))}
                 className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
+                disabled={loadingTimes || !editedBooking.date}
               >
-                {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
-                  <option key={time} value={time}>{time}</option>
-                ))}
+                {loadingTimes ? (
+                  <option>{language === 'zh' ? '載入中...' : 'Loading...'}</option>
+                ) : !editedBooking.date ? (
+                  <option>{language === 'zh' ? '請先選擇日期' : 'Please select date first'}</option>
+                ) : timeOptions.length === 0 ? (
+                  <option>{language === 'zh' ? '無可用時段' : 'No available slots'}</option>
+                ) : (
+                  <>
+                    <option value="">{language === 'zh' ? '選擇開始時間' : 'Select start time'}</option>
+                    {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
             <div>
@@ -96,10 +135,22 @@ export const EditBookingModal = ({ isOpen, onClose, booking, onSave }) => {
                 value={editedBooking.endTime || ''}
                 onChange={(e) => setEditedBooking(prev => ({ ...prev, endTime: e.target.value }))}
                 className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
+                disabled={loadingTimes || !editedBooking.startTime}
               >
-                {timeOptions.filter(time => time > (editedBooking.startTime || "00:00")).map(time => (
-                  <option key={time} value={time}>{time}</option>
-                ))}
+                {loadingTimes ? (
+                  <option>{language === 'zh' ? '載入中...' : 'Loading...'}</option>
+                ) : !editedBooking.startTime ? (
+                  <option>{language === 'zh' ? '請先選擇開始時間' : 'Please select start time first'}</option>
+                ) : timeOptions.length === 0 ? (
+                  <option>{language === 'zh' ? '無可用時段' : 'No available slots'}</option>
+                ) : (
+                  <>
+                    <option value="">{language === 'zh' ? '選擇結束時間' : 'Select end time'}</option>
+                    {timeOptions.filter(time => time > (editedBooking.startTime || "00:00")).map(time => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
           </div>

@@ -84,6 +84,35 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Subscribe to profile changes for real-time updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🔔 Setting up real-time profile subscription for user:', user.id);
+
+    const channel = supabase
+      .channel(`user-profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔔 Profile updated in database:', payload.new);
+          setProfile(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔕 Unsubscribing from profile changes');
+      channel.unsubscribe();
+    };
+  }, [user?.id]);
+
   const register = async (userData) => {
     try {
       const result = await authService.signUp(
@@ -297,30 +326,47 @@ export const AuthProvider = ({ children }) => {
 
   const deductBRBalance = async (userId, brAmount, packageType) => {
     try {
-      console.log('💳 Deducting BR balance:', { userId, brAmount, packageType });
-      const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
-      console.log('📊 Balance field:', balanceField);
+      console.log('=== DEDUCT BR BALANCE DEBUG ===');
+      console.log('💳 Input params:', { userId, brAmount, packageType });
+      console.log('📊 Current user profile:', profile);
 
-      // Get current balance
-      console.log('📖 Fetching current balance...');
+      const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
+      console.log('📊 Balance field to check:', balanceField);
+
+      // Get current balance from database (not from cached profile)
+      console.log('📖 Fetching FRESH balance from database...');
       const { data: userData, error: fetchError } = await supabase
         .from('users')
-        .select(balanceField)
+        .select('*')  // Get all fields to debug
         .eq('id', userId)
         .single();
 
       if (fetchError) {
         console.error('❌ Fetch error:', fetchError);
+        console.error('❌ Error details:', JSON.stringify(fetchError, null, 2));
         throw fetchError;
       }
 
-      console.log('✅ User data:', userData);
+      console.log('✅ Fresh user data from DB:', userData);
+      console.log('✅ BR15 in DB:', userData.br15_balance);
+      console.log('✅ BR30 in DB:', userData.br30_balance);
+
       const currentBalance = userData[balanceField] || 0;
-      console.log('💰 Current balance:', currentBalance, 'Required:', brAmount);
+      console.log('💰 Current balance for', packageType, ':', currentBalance);
+      console.log('💰 Required:', brAmount);
+      console.log('💰 Will have after deduction:', currentBalance - brAmount);
 
       if (currentBalance < brAmount) {
-        console.error('❌ Insufficient balance!', { currentBalance, brAmount, difference: brAmount - currentBalance });
-        return { success: false, error: 'Insufficient BR balance' };
+        console.error('❌ INSUFFICIENT BALANCE!');
+        console.error('❌ Package:', packageType);
+        console.error('❌ Current:', currentBalance);
+        console.error('❌ Required:', brAmount);
+        console.error('❌ Short by:', brAmount - currentBalance);
+        console.error('=========================');
+        return {
+          success: false,
+          error: `Insufficient BR balance. You have ${currentBalance} BR but need ${brAmount} BR.`
+        };
       }
 
       const newBalance = currentBalance - brAmount;
@@ -425,6 +471,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshProfile = async () => {
+    try {
+      if (!user?.id) {
+        console.warn('⚠️ Cannot refresh profile: no user logged in');
+        return { success: false, error: 'No user logged in' };
+      }
+
+      console.log('🔄 Manually refreshing profile for user:', user.id);
+
+      const { data: freshProfile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('❌ Error refreshing profile:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Profile refreshed:', freshProfile);
+      setProfile(freshProfile);
+      return { success: true, profile: freshProfile };
+    } catch (error) {
+      console.error('❌ Refresh profile error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const value = {
     user: profile, // Return profile as user for compatibility
     login,
@@ -439,6 +514,7 @@ export const AuthProvider = ({ children }) => {
     adminResetPassword,
     findUserByEmail,
     deleteUser,
+    refreshProfile,
     logout,
     isLoading,
     // Additional Supabase-specific data
