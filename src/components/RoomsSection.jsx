@@ -134,14 +134,7 @@ export const RoomsSection = () => {
   }, [user]);
 
   const visibleRooms = rooms
-    .filter(room => !room.hidden || (user && (user.isAdmin || user.is_admin)));
-
-  const cashRooms = visibleRooms
-    .filter(room => room.booking_options?.includes('cash') || room.bookingOptions?.includes('cash'))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const tokenRooms = visibleRooms
-    .filter(room => room.booking_options?.includes('token') || room.bookingOptions?.includes('token'))
+    .filter(room => !room.hidden || (user && (user.isAdmin || user.is_admin)))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   if (loading) {
@@ -169,17 +162,9 @@ export const RoomsSection = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <h3 className="text-3xl font-bold text-amber-800 mb-6 text-center">{language === 'zh' ? '現金預約' : 'Cash Booking'}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-              {cashRooms.map((room, index) => (
-                <RoomCard room={room} index={index} key={`cash-${room.id}`} t={t} />
-              ))}
-            </div>
-
-            <h3 className="text-3xl font-bold text-amber-800 mb-6 text-center">{language === 'zh' ? '代幣預約' : 'Token Booking'}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {tokenRooms.map((room, index) => (
-                <RoomCard room={room} index={index} key={`token-${room.id}`} t={t} />
+              {visibleRooms.map((room, index) => (
+                <RoomCard room={room} index={index} key={room.id} t={t} />
               ))}
             </div>
           </div>
