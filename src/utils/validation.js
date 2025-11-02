@@ -13,32 +13,19 @@ export const validateEmail = (email) => {
 /**
  * Validate password strength
  * Requirements:
- * - At least 8 characters
- * - At least one uppercase letter
- * - At least one lowercase letter
- * - At least one number
- * - At least one special character
+ * - At least 6 characters (simplified requirement)
  */
 export const validatePassword = (password) => {
-  const minLength = 8;
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSpecialChar = /[@$!%*?&]/.test(password);
+  const minLength = 6;
 
   return {
-    isValid:
-      password.length >= minLength &&
-      hasUpperCase &&
-      hasLowerCase &&
-      hasNumber &&
-      hasSpecialChar,
+    isValid: password.length >= minLength,
     errors: {
       minLength: password.length < minLength,
-      hasUpperCase: !hasUpperCase,
-      hasLowerCase: !hasLowerCase,
-      hasNumber: !hasNumber,
-      hasSpecialChar: !hasSpecialChar,
+      hasUpperCase: false,
+      hasLowerCase: false,
+      hasNumber: false,
+      hasSpecialChar: false,
     },
   };
 };
@@ -50,8 +37,8 @@ export const validatePassword = (password) => {
 export const getPasswordStrength = (password) => {
   let strength = 0;
 
+  if (password.length >= 6) strength++;
   if (password.length >= 8) strength++;
-  if (password.length >= 12) strength++;
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
   if (/\d/.test(password)) strength++;
   if (/[@$!%*?&]/.test(password)) strength++;
@@ -134,7 +121,7 @@ export const getValidationMessages = (language = 'en') => {
       usernameInvalidChars: 'Username can only contain letters and numbers',
       usernameInvalid: 'Username must be 3-20 characters, letters and numbers only',
       passwordRequired: 'Password is required',
-      passwordMinLength: 'Password must be at least 8 characters',
+      passwordMinLength: 'Password must be at least 6 characters',
       passwordUpperCase: 'Password must contain at least one uppercase letter',
       passwordLowerCase: 'Password must contain at least one lowercase letter',
       passwordNumber: 'Password must contain at least one number',
@@ -153,7 +140,7 @@ export const getValidationMessages = (language = 'en') => {
       usernameInvalidChars: '用戶名稱只能包含字母和數字',
       usernameInvalid: '用戶名稱必須為3-20個字元，只能包含字母和數字',
       passwordRequired: '密碼為必填',
-      passwordMinLength: '密碼至少需要8個字元',
+      passwordMinLength: '密碼至少需要6個字元',
       passwordUpperCase: '密碼必須包含至少一個大寫字母',
       passwordLowerCase: '密碼必須包含至少一個小寫字母',
       passwordNumber: '密碼必須包含至少一個數字',
