@@ -63,7 +63,7 @@ export const userService = {
   /**
    * Update user tokens
    */
-  async updateTokens(userId, newTokenCount, isTopUp = false) {
+  async updateTokens(userId, newTokenCount, isTopUp = false, reason = '') {
     try {
       // Get current user data
       const { data: currentUser, error: fetchError } = await supabase
@@ -103,6 +103,7 @@ export const userService = {
             change: tokenChange,
             new_balance: newTokenCount,
             transaction_type: tokenChange > 0 ? 'top-up' : 'deduction',
+            reason: reason || null
           });
       }
 

@@ -22,13 +22,17 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }) => {
-  const { user: adminUser, updateUserTokens, assignBRPackage, updateUser, deleteUser } = useAuth();
+  const { user: adminUser, updateUserTokens, assignBRPackage, assignDP20Package, updateUser, deleteUser } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const { toast } = useToast();
   const [tokenAmount, setTokenAmount] = useState(1);
+  const [tokenReason, setTokenReason] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedBRUserId, setSelectedBRUserId] = useState('');
+  const [brReason, setBrReason] = useState('');
+  const [selectedDP20UserId, setSelectedDP20UserId] = useState('');
+  const [dp20Reason, setDp20Reason] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [profileData, setProfileData] = useState({ name: '', email: '', phone: '' });
   const [userToDelete, setUserToDelete] = useState(null);
@@ -44,7 +48,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
   console.log('👥 AdminUsersTab - Non-admin users:', nonAdminUsers);
   console.log('👥 AdminUsersTab - Non-admin users count:', nonAdminUsers.length);
 
-  const handleTokenUpdate = (userId, operation) => {
+  const handleTokenUpdate = async (userId, operation) => {
     const targetUser = safeUsers.find(u => u.id === userId);
     if (!targetUser) return;
 
@@ -55,7 +59,9 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
       ? (targetUser.tokens || 0) + amount
       : Math.max(0, (targetUser.tokens || 0) - amount);
 
-    const updatedUser = updateUserTokens(userId, newTokenCount, operation === 'add');
+    console.log('💰 Updating tokens:', { userId, amount, operation, reason: tokenReason });
+
+    const updatedUser = await updateUserTokens(userId, newTokenCount, operation === 'add', tokenReason);
 
     const updatedUsersList = safeUsers.map(u =>
       u.id === userId ? updatedUser : u
@@ -64,8 +70,13 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
 
     toast({
       title: t.admin.tokensUpdated,
-      description: t.admin.tokensUpdatedDesc
+      description: tokenReason
+        ? `${t.admin.tokensUpdatedDesc} - ${language === 'zh' ? '原因' : 'Reason'}: ${tokenReason}`
+        : t.admin.tokensUpdatedDesc
     });
+
+    // Clear the reason field after successful update
+    setTokenReason('');
   };
 
   const handleBRPackageAssignment = async (packageType) => {
@@ -73,6 +84,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
     console.log('👤 Selected user ID:', selectedBRUserId);
     console.log('👨‍💼 Admin user:', adminUser);
     console.log('🆔 Admin user ID:', adminUser?.id);
+    console.log('📝 Reason:', brReason);
 
     if (!selectedBRUserId) {
       console.error('❌ No user selected!');
@@ -95,7 +107,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
     }
 
     console.log('✅ Calling assignBRPackage...');
-    const result = await assignBRPackage(selectedBRUserId, packageType, adminUser.id);
+    const result = await assignBRPackage(selectedBRUserId, packageType, adminUser.id, brReason);
     console.log('📦 Result:', result);
 
     if (result.success) {
@@ -107,10 +119,74 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
 
       toast({
         title: language === 'zh' ? '套票已分配' : 'Package Assigned',
-        description: language === 'zh'
-          ? `已成功分配 ${packageType} 套票`
-          : `Successfully assigned ${packageType} package`
+        description: brReason
+          ? `${language === 'zh' ? `已成功分配 ${packageType} 套票` : `Successfully assigned ${packageType} package`} - ${language === 'zh' ? '原因' : 'Reason'}: ${brReason}`
+          : language === 'zh'
+            ? `已成功分配 ${packageType} 套票`
+            : `Successfully assigned ${packageType} package`
       });
+
+      // Clear the reason field after successful assignment
+      setBrReason('');
+    } else {
+      console.error('❌ Failed:', result.error);
+      toast({
+        title: language === 'zh' ? '分配失敗' : 'Assignment Failed',
+        description: result.error,
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDP20PackageAssignment = async () => {
+    console.log('🔘 DP20 Package button clicked');
+    console.log('👤 Selected user ID:', selectedDP20UserId);
+    console.log('👨‍💼 Admin user:', adminUser);
+    console.log('🆔 Admin user ID:', adminUser?.id);
+    console.log('📝 Reason:', dp20Reason);
+
+    if (!selectedDP20UserId) {
+      console.error('❌ No user selected!');
+      toast({
+        title: language === 'zh' ? '請選擇用戶' : 'Please Select User',
+        description: language === 'zh' ? '請先選擇一個用戶' : 'Please select a user first',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!adminUser?.id) {
+      console.error('❌ No admin user ID!');
+      toast({
+        title: language === 'zh' ? '管理員錯誤' : 'Admin Error',
+        description: language === 'zh' ? '無法獲取管理員ID' : 'Cannot get admin ID',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    console.log('✅ Calling assignDP20Package...');
+    const result = await assignDP20Package(selectedDP20UserId, adminUser.id, dp20Reason);
+    console.log('📦 Result:', result);
+
+    if (result.success) {
+      console.log('✅ Success! Updating users list...');
+      const updatedUsersList = safeUsers.map(u =>
+        u.id === selectedDP20UserId ? result.profile : u
+      );
+      setUsers(updatedUsersList);
+
+      toast({
+        title: language === 'zh' ? 'DP20 套票已分配' : 'DP20 Package Assigned',
+        description: dp20Reason
+          ? `${language === 'zh' ? '已成功分配 DP20 套票 (20次, 90日有效)' : 'Successfully assigned DP20 package (20 visits, 90-day validity)'} - ${language === 'zh' ? '原因' : 'Reason'}: ${dp20Reason}`
+          : language === 'zh'
+            ? '已成功分配 DP20 套票 (20次, 90日有效)'
+            : 'Successfully assigned DP20 package (20 visits, 90-day validity)'
+      });
+
+      // Clear the reason field after successful assignment
+      setDp20Reason('');
     } else {
       console.error('❌ Failed:', result.error);
       toast({
@@ -156,7 +232,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
         <h3 className="text-lg font-semibold text-amber-800 mb-4">
           {t.dashboard.manageTokens}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <Label className="text-amber-800">{language === 'zh' ? '選擇用戶' : 'Select User'}</Label>
             <select
@@ -189,6 +265,16 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               className="border-amber-200 focus:border-amber-400"
             />
           </div>
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '原因' : 'Reason'}</Label>
+            <Input
+              type="text"
+              placeholder={language === 'zh' ? '例如：促銷活動、補償等' : 'e.g., Promotion, Compensation'}
+              value={tokenReason}
+              onChange={(e) => setTokenReason(e.target.value)}
+              className="border-amber-200 focus:border-amber-400"
+            />
+          </div>
           <div className="flex items-end space-x-2">
             <Button
               onClick={() => handleTokenUpdate(selectedUserId, 'add')}
@@ -215,7 +301,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
         <h3 className="text-lg font-semibold text-amber-800 mb-4">
           {language === 'zh' ? '分配 BR 套票' : 'Assign BR Packages'}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <Label className="text-amber-800">{language === 'zh' ? '選擇用戶' : 'Select User'}</Label>
             <select
@@ -237,6 +323,16 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                 );
               })}
             </select>
+          </div>
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '原因' : 'Reason'}</Label>
+            <Input
+              type="text"
+              placeholder={language === 'zh' ? '例如：購買套票、促銷活動等' : 'e.g., Purchase, Promotion'}
+              value={brReason}
+              onChange={(e) => setBrReason(e.target.value)}
+              className="border-amber-200 focus:border-amber-400"
+            />
           </div>
           <div className="flex items-end space-x-2 md:col-span-2">
             <Button
@@ -269,6 +365,75 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                   <span className="ml-4">
                     BR30: {safeUsers.find(u => u.id === selectedBRUserId)?.br30_balance || 0} BR
                   </span>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6 mb-6 border-amber-200 bg-gradient-to-r from-green-50 to-teal-50">
+        <h3 className="text-lg font-semibold text-amber-800 mb-4">
+          {language === 'zh' ? '分配 DP20 套票' : 'Assign DP20 Package'}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '選擇用戶' : 'Select User'}</Label>
+            <select
+              value={selectedDP20UserId}
+              onChange={(e) => {
+                console.log('🔄 DP20 dropdown changed:', e.target.value);
+                setSelectedDP20UserId(e.target.value);
+              }}
+              className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
+            >
+              <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
+              {nonAdminUsers.map(user => {
+                const userName = user.name || user.full_name || user.email;
+                console.log('📝 Rendering DP20 dropdown option:', user.id, userName, user.email);
+                return (
+                  <option key={user.id} value={user.id}>
+                    {userName} ({user.email})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '原因' : 'Reason'}</Label>
+            <Input
+              type="text"
+              placeholder={language === 'zh' ? '例如：購買套票、促銷活動等' : 'e.g., Purchase, Promotion'}
+              value={dp20Reason}
+              onChange={(e) => setDp20Reason(e.target.value)}
+              className="border-amber-200 focus:border-amber-400"
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              onClick={() => handleDP20PackageAssignment()}
+              disabled={!selectedDP20UserId}
+              className="w-full bg-gradient-to-r from-green-600 to-teal-700 hover:from-green-700 hover:to-teal-800 text-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              {language === 'zh' ? '分配 DP20 套票 (+20次)' : 'Assign DP20 Package (+20 visits)'}
+            </Button>
+          </div>
+        </div>
+        {selectedDP20UserId && (
+          <div className="mt-4 p-4 bg-white/50 rounded-md border border-amber-200">
+            <p className="text-sm text-amber-700">
+              <strong>{language === 'zh' ? '當前餘額：' : 'Current Balance:'}</strong>
+              {safeUsers.find(u => u.id === selectedDP20UserId) && (
+                <>
+                  <span className="ml-2">
+                    DP20: {safeUsers.find(u => u.id === selectedDP20UserId)?.dp20_balance || 0} {language === 'zh' ? '次' : 'visits'}
+                  </span>
+                  {safeUsers.find(u => u.id === selectedDP20UserId)?.dp20_expiry && (
+                    <span className="ml-4 text-xs">
+                      ({language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(safeUsers.find(u => u.id === selectedDP20UserId)?.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')})
+                    </span>
+                  )}
                 </>
               )}
             </p>
@@ -315,14 +480,22 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                 <div className="flex items-center space-x-2 flex-wrap gap-2">
                   <div className="text-right">
                     <div className="token-badge mb-1"><span className="token-icon"></span>{user.tokens || 0} {language === 'zh' ? '代幣' : 'Tokens'}</div>
-                    <div className="flex gap-2 text-xs">
+                    <div className="flex gap-2 text-xs flex-wrap">
                       <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
                         BR15: {user.br15_balance || 0}
                       </span>
                       <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">
                         BR30: {user.br30_balance || 0}
                       </span>
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                        DP20: {user.dp20_balance || 0}
+                      </span>
                     </div>
+                    {user.dp20_expiry && (
+                      <p className="text-xs text-green-600 mt-1">
+                        {language === 'zh' ? 'DP20 有效期至' : 'DP20 valid until'}: {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                      </p>
+                    )}
                     <p className="text-xs text-amber-600 mt-1">{t.dashboard.validUntil.replace('{date}', new Date(user.tokenValidUntil).toLocaleDateString())}</p>
                   </div>
                   {adminUser.id !== user.id && (

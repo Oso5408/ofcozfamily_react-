@@ -19,7 +19,7 @@ export const BookingPage = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { user, updateUserTokens, deductBRBalance } = useAuth();
+  const { user, updateUserTokens, deductBRBalance, deductDP20Balance } = useAuth();
   const t = translations[language];
   
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -44,6 +44,17 @@ export const BookingPage = () => {
   const [showTermsDialog, setShowTermsDialog] = useState(false);
 
   useEffect(() => {
+    // Check if user is logged in - redirect to login if not
+    if (!user) {
+      toast({
+        title: language === 'zh' ? '需要登入' : 'Login Required',
+        description: language === 'zh' ? '請先登入以進行預約' : 'Please sign in to make a booking',
+        variant: 'default',
+      });
+      navigate('/login', { state: { returnUrl: `/booking/${roomId}` } });
+      return;
+    }
+
     const room = roomsData.find(r => r.id === parseInt(roomId));
     if (!room) {
       navigate('/');
@@ -51,9 +62,18 @@ export const BookingPage = () => {
     }
     setSelectedRoom(room);
 
-    const initialBookingType = room.bookingOptions.includes('token') ? 'token' : 'cash';
+    // Set initial booking type based on available options
+    let initialBookingType = 'cash'; // Default to cash
+    if (room.bookingOptions.includes('token')) {
+      initialBookingType = 'token';
+    } else if (room.bookingOptions.includes('cash')) {
+      initialBookingType = 'cash';
+    } else if (room.bookingOptions.includes('dp20')) {
+      initialBookingType = 'dp20';
+    }
+
     let initialRentalType = 'hourly';
-    if (room.id === 9) { // One Day Pass
+    if (room.id === 9) { // Lobby Seat - always daily
       initialRentalType = 'daily';
     }
 
@@ -65,7 +85,7 @@ export const BookingPage = () => {
       email: user?.email || '',
       phone: user?.phone || ''
     }));
-  }, [roomId, navigate, user]);
+  }, [roomId, navigate, user, language, toast]);
 
   const checkTimeConflict = async (roomId, date, startTime, endTime) => {
     if(roomId === 9) return false;
@@ -295,6 +315,38 @@ export const BookingPage = () => {
             description: t.booking.tokensDeductedDesc.replace('{count}', requiredTokens)
           });
         }
+      }
+
+      // Handle DP20 payment
+      if (bookingData.bookingType === 'dp20' && !user?.isAdmin) {
+        console.log('🎫 Processing DP20 payment');
+
+        const dp20Result = await deductDP20Balance(user.id);
+
+        if (!dp20Result.success) {
+          console.error('❌ DP20 deduction failed:', dp20Result.error);
+
+          toast({
+            title: language === 'zh' ? 'DP20 餘額不足或已過期' : 'Insufficient DP20 Balance or Expired',
+            description: language === 'zh'
+              ? `無法使用 DP20 套票。${dp20Result.error}`
+              : `Cannot use DP20 package. ${dp20Result.error}`,
+            variant: 'destructive',
+            duration: 8000
+          });
+
+          // Delete the booking since payment failed
+          await bookingService.deleteBooking(result.booking.id);
+          return;
+        }
+
+        console.log('✅ DP20 visit deducted successfully');
+        toast({
+          title: language === 'zh' ? 'DP20 已扣除' : 'DP20 Deducted',
+          description: language === 'zh'
+            ? `已從 DP20 套票扣除 1 次使用。剩餘 ${dp20Result.profile?.dp20_balance || 0} 次。`
+            : `1 visit deducted from DP20 package. ${dp20Result.profile?.dp20_balance || 0} visits remaining.`
+        });
       }
 
       // Show success message

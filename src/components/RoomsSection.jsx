@@ -9,10 +9,22 @@ import { translations } from '@/data/translations';
 import { roomsData } from '@/data/roomsData';
 import { useNavigate } from 'react-router-dom';
 import { roomService } from '@/services/roomService';
+import { LoginPromptModal } from '@/components/LoginPromptModal';
 
-const RoomCard = ({ room, index, t }) => {
+const RoomCard = ({ room, index, t, onBookingClick }) => {
   const [reviews, setReviews] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
+
+  // Get visible images from room
+  const visibleImages = room.images
+    ? room.images
+        .filter(img => img.visible !== false)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(img => img.url)
+    : room.image_url
+    ? [room.image_url]
+    : [`https://source.unsplash.com/800x600/?workspace,cozy,${index+10}`];
 
   useEffect(() => {
     const allReviews = JSON.parse(localStorage.getItem('ofcoz_reviews') || '[]');
@@ -31,7 +43,22 @@ const RoomCard = ({ room, index, t }) => {
   const rating = getRoomRating();
 
   const handleBookingClick = () => {
-    navigate(`/booking/${room.id}`);
+    onBookingClick(room.id);
+  };
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev + 1) % visibleImages.length);
+  };
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev - 1 + visibleImages.length) % visibleImages.length);
+  };
+
+  const goToImage = (idx, e) => {
+    e.stopPropagation();
+    setCurrentImageIndex(idx);
   };
 
   return (
@@ -43,11 +70,53 @@ const RoomCard = ({ room, index, t }) => {
       whileHover={{ scale: 1.02 }}
     >
       <Card className="overflow-hidden glass-effect cat-shadow border-amber-200 h-full flex flex-col">
-        <div className="relative">
+        <div className="relative group">
+          {/* Image Display */}
           <img
-            className="w-full h-64 object-cover"
+            className="w-full h-64 object-cover transition-opacity duration-300"
             alt={`${room.name} - cat-friendly accommodation`}
-            src={room.image_url || `https://source.unsplash.com/800x600/?workspace,cozy,${index+10}`} />
+            src={visibleImages[currentImageIndex]}
+          />
+
+          {/* Navigation Arrows (only show if multiple images) */}
+          {visibleImages.length > 1 && (
+            <>
+              <button
+                onClick={prevImage}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Previous image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={nextImage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Next image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Dots Indicator */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {visibleImages.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => goToImage(idx, e)}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      idx === currentImageIndex
+                        ? 'bg-white w-6'
+                        : 'bg-white/50 hover:bg-white/75'
+                    }`}
+                    aria-label={`Go to image ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
         
         <div className="p-6 flex flex-col flex-grow">
@@ -106,9 +175,12 @@ const TermsBox = ({ t }) => (
 export const RoomsSection = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const t = translations[language];
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [pendingBookingUrl, setPendingBookingUrl] = useState('');
 
   // Fetch rooms from Supabase
   useEffect(() => {
@@ -138,6 +210,19 @@ export const RoomsSection = () => {
     .filter(room => !room.hidden || (user && (user.isAdmin || user.is_admin)))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // Handle booking click - check if user is logged in
+  const handleBookingClick = (roomId) => {
+    if (!user) {
+      // User is not logged in, show login prompt
+      const bookingUrl = `/booking/${roomId}`;
+      setPendingBookingUrl(bookingUrl);
+      setShowLoginPrompt(true);
+    } else {
+      // User is logged in, navigate to booking page
+      navigate(`/booking/${roomId}`);
+    }
+  };
+
   if (loading) {
     return (
       <section id="rooms" className="py-16 px-4">
@@ -163,16 +248,54 @@ export const RoomsSection = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
+            {/* Lobby Seat Section */}
+            {visibleRooms.some(room => room.id === 9) && (
+              <div className="mb-12">
+                <h3 className="text-2xl font-bold text-amber-800 mb-6 text-center">
+                  {language === 'zh' ? '時租預約' : 'Hourly Booking'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {visibleRooms
+                    .filter(room => room.id === 9)
+                    .map((room, index) => (
+                      <RoomCard
+                        room={room}
+                        index={index}
+                        key={room.id}
+                        t={t}
+                        onBookingClick={handleBookingClick}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Other Rooms - No title */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {visibleRooms.map((room, index) => (
-                <RoomCard room={room} index={index} key={room.id} t={t} />
-              ))}
+              {visibleRooms
+                .filter(room => room.id !== 9)
+                .map((room, index) => (
+                  <RoomCard
+                    room={room}
+                    index={index}
+                    key={room.id}
+                    t={t}
+                    onBookingClick={handleBookingClick}
+                  />
+                ))}
             </div>
           </div>
           <div className="lg:col-span-1">
             <TermsBox t={t} />
           </div>
         </div>
+
+        {/* Login Prompt Modal */}
+        <LoginPromptModal
+          isOpen={showLoginPrompt}
+          onClose={() => setShowLoginPrompt(false)}
+          returnUrl={pendingBookingUrl}
+        />
       </div>
     </section>
   );

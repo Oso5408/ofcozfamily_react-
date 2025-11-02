@@ -23,7 +23,15 @@ export const roomService = {
       const { data, error } = await query;
 
       if (error) throw error;
-      return { success: true, rooms: data };
+
+      // Transform snake_case to camelCase for frontend compatibility
+      const transformedRooms = data.map(room => ({
+        ...room,
+        bookingOptions: room.booking_options,
+        imageUrl: room.image_url,
+      }));
+
+      return { success: true, rooms: transformedRooms };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
     }
@@ -41,7 +49,15 @@ export const roomService = {
         .single();
 
       if (error) throw error;
-      return { success: true, room: data };
+
+      // Transform snake_case to camelCase for frontend compatibility
+      const transformedRoom = {
+        ...data,
+        bookingOptions: data.booking_options,
+        imageUrl: data.image_url,
+      };
+
+      return { success: true, room: transformedRoom };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
     }
@@ -164,9 +180,10 @@ export const roomService = {
   },
 
   /**
-   * Upload room image to Supabase Storage (admin only)
+   * Upload room image to Supabase Storage (admin only) - DEPRECATED
+   * Use the new multi-image version below
    */
-  async uploadRoomImage(file, roomId) {
+  async uploadRoomImageSingle(file, roomId) {
     try {
       console.log('📤 Uploading room image:', { roomId, fileName: file.name, fileSize: file.size });
 
@@ -249,7 +266,7 @@ export const roomService = {
   async updateRoomImage(roomId, file, oldImageUrl) {
     try {
       // Upload new image
-      const uploadResult = await this.uploadRoomImage(file, roomId);
+      const uploadResult = await this.uploadRoomImageSingle(file, roomId);
       if (!uploadResult.success) {
         return uploadResult;
       }
@@ -273,6 +290,84 @@ export const roomService = {
       return { success: true, room: updateResult.room, imageUrl: uploadResult.imageUrl };
     } catch (error) {
       console.error('❌ updateRoomImage error:', error);
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Upload multiple room images (admin only)
+   * @param {number} roomId - Room ID
+   * @param {File} file - Image file to upload
+   * @param {number} index - Image index (0-2)
+   * @returns {Promise<{success: boolean, url?: string, error?: string}>}
+   */
+  async uploadRoomImage(roomId, file, index) {
+    try {
+      console.log('📤 Uploading room image:', { roomId, index, fileName: file.name });
+
+      // Validate file
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        throw new Error('File size exceeds 5MB limit');
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Only JPG, PNG, and WebP are allowed');
+      }
+
+      // Create unique filename: room-{roomId}-{index}-{timestamp}.{ext}
+      const fileExt = file.name.split('.').pop();
+      const fileName = `room-${roomId}-${index}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('room-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('room-images')
+        .getPublicUrl(filePath);
+
+      console.log('✅ Image uploaded successfully:', publicUrl);
+      return { success: true, url: publicUrl, filePath };
+    } catch (error) {
+      console.error('❌ uploadRoomImage error:', error);
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Update room with multiple images (admin only)
+   * @param {number} roomId - Room ID
+   * @param {Array} imagesData - Array of {url, visible, order}
+   * @returns {Promise<{success: boolean, room?: object, error?: string}>}
+   */
+  async updateRoomImages(roomId, imagesData) {
+    try {
+      console.log('📝 Updating room images:', { roomId, imageCount: imagesData.length });
+
+      // Update room with images array
+      const { data, error } = await supabase
+        .from('rooms')
+        .update({ images: imagesData })
+        .eq('id', roomId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Room images updated successfully');
+      return { success: true, room: data };
+    } catch (error) {
+      console.error('❌ updateRoomImages error:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },

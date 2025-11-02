@@ -41,12 +41,16 @@ export const BookingModal = ({
       console.log('👤 User object:', user);
       console.log('💰 BR15 Balance:', user.br15_balance);
       console.log('💰 BR30 Balance:', user.br30_balance);
+      console.log('🎫 DP20 Balance:', user.dp20_balance);
+      console.log('📅 DP20 Expiry:', user.dp20_expiry);
       console.log('🪙 Token Balance:', user.tokens);
       console.log('👑 Is Admin:', user.isAdmin);
       console.log('📦 Selected BR Package:', bookingData.selectedBRPackage);
+      console.log('🏠 Selected Room:', selectedRoom?.name);
+      console.log('💳 Booking Options:', selectedRoom?.bookingOptions);
       console.log('========================');
     }
-  }, [isOpen, user, bookingData.selectedBRPackage]);
+  }, [isOpen, user, bookingData.selectedBRPackage, selectedRoom]);
 
   const [showOtherPurposeInput, setShowOtherPurposeInput] = useState(false);
   const [timeOptions, setTimeOptions] = useState([]);
@@ -232,12 +236,19 @@ export const BookingModal = ({
   };
 
   const calculatePrice = () => {
-    if (bookingData.bookingType !== 'cash' || !selectedRoom?.prices?.cash) return 0;
+    // For DP20 bookings, show the cash equivalent price for reference
+    if (!selectedRoom?.prices?.cash) return 0;
+    if (bookingData.bookingType === 'dp20' && !selectedRoom?.prices?.cash) return 0;
 
     let basePrice = 0;
 
     if (bookingData.rentalType === 'daily' && selectedRoom.prices.cash.daily) {
       basePrice = selectedRoom.prices.cash.daily;
+
+      // For Lobby Seat (room 9), multiply by number of guests ($100 per person)
+      if (selectedRoom.id === 9) {
+        basePrice = basePrice * (bookingData.guests || 1);
+      }
     } else if (bookingData.rentalType === 'hourly' && bookingData.startTime && bookingData.endTime && selectedRoom.prices.cash.hourly) {
       const start = parseInt(bookingData.startTime.split(':')[0]);
       const end = parseInt(bookingData.endTime.split(':')[0]);
@@ -319,7 +330,7 @@ export const BookingModal = ({
           )}
         </DialogHeader>
 
-        {bookingData.bookingType === 'cash' ? (
+        {bookingData.bookingType === 'cash' && !selectedRoom?.bookingOptions?.includes('dp20') ? (
           <MultiStepBookingForm
             selectedRoom={selectedRoom}
             bookingData={bookingData}
@@ -342,10 +353,17 @@ export const BookingModal = ({
             <div><Label htmlFor="phone" className="text-amber-800">{t.booking.phone}</Label><Input id="phone" required value={bookingData.phone} onChange={(e) => setBookingData({ ...bookingData, phone: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label className="text-amber-800">{t.booking.date}</Label><Input type="date" value={bookingData.date || ''} onChange={(e) => setBookingData({ ...bookingData, date: e.target.value, startTime: '', endTime:'' })} className="border-amber-200 focus:border-amber-400" min={new Date().toISOString().split('T')[0]} max={getMaxDate()} /></div>
             
-            <Tabs value={bookingData.bookingType} onValueChange={(val) => setBookingData(prev => ({...prev, bookingType: val, rentalType: 'hourly', startTime: '', endTime: ''}))} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="token" disabled={!selectedRoom?.bookingOptions.includes('token') || selectedRoom.name === 'Room C'}>{t.booking.token}</TabsTrigger>
-                <TabsTrigger value="cash" disabled={!selectedRoom?.bookingOptions.includes('cash')}>{t.booking.cash}</TabsTrigger>
+            <Tabs value={bookingData.bookingType} onValueChange={(val) => setBookingData(prev => ({...prev, bookingType: val, rentalType: val === 'dp20' ? 'daily' : 'hourly', startTime: '', endTime: ''}))} className="w-full">
+              <TabsList className={`grid w-full ${selectedRoom?.bookingOptions.filter(opt => opt !== 'token' || selectedRoom.name !== 'Room C').length === 3 ? 'grid-cols-3' : selectedRoom?.bookingOptions.filter(opt => opt !== 'token' || selectedRoom.name !== 'Room C').length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {selectedRoom?.bookingOptions.includes('token') && selectedRoom.name !== 'Room C' && (
+                  <TabsTrigger value="token">{t.booking.token}</TabsTrigger>
+                )}
+                {selectedRoom?.bookingOptions.includes('cash') && (
+                  <TabsTrigger value="cash">{t.booking.cash}</TabsTrigger>
+                )}
+                {selectedRoom?.bookingOptions.includes('dp20') && (
+                  <TabsTrigger value="dp20">{t.booking.dp20Package}</TabsTrigger>
+                )}
               </TabsList>
               
               <TabsContent value="token" className="pt-4">
@@ -549,6 +567,81 @@ export const BookingModal = ({
                     </div>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="dp20" className="pt-4">
+                {user && !user.isAdmin && (
+                  <div className="space-y-4">
+                    {/* DP20 Balance Display */}
+                    <div className="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg border-2 border-green-200">
+                      <h4 className="text-green-800 font-semibold mb-2">{t.booking.dp20Package}</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">{language === 'zh' ? '剩餘次數:' : 'Remaining visits:'}</span>
+                          <span className={`font-bold ${(user.dp20_balance || 0) > 5 ? 'text-green-700' : (user.dp20_balance || 0) > 0 ? 'text-orange-600' : 'text-red-600'}`}>
+                            {t.booking.dp20Balance.replace('{balance}', user.dp20_balance || 0)}
+                          </span>
+                        </div>
+                        {user.dp20_expiry && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">{language === 'zh' ? '有效期至:' : 'Valid until:'}</span>
+                            <span className={`text-sm font-medium ${new Date(user.dp20_expiry) < new Date() ? 'text-red-600' : new Date(user.dp20_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ? 'text-orange-600' : 'text-green-700'}`}>
+                              {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Warning messages */}
+                      {(user.dp20_balance || 0) === 0 && (
+                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <p className="text-sm text-blue-800 font-medium mb-2">
+                            {language === 'zh' ? '📢 您目前沒有DP20套票' : '📢 You don\'t have a DP20 package yet'}
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            {t.booking.dp20PackageInfo}
+                          </p>
+                          <p className="text-xs text-blue-600 mt-2">
+                            {language === 'zh'
+                              ? '💡 如需購買或了解更多，WhatsApp查詢: 6623 8788'
+                              : '💡 To purchase or learn more, WhatsApp: 6623 8788'}
+                          </p>
+                        </div>
+                      )}
+                      {user.dp20_expiry && new Date(user.dp20_expiry) < new Date() && (
+                        <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <p className="text-sm text-red-700 font-medium">
+                            {t.booking.dp20Expired}
+                          </p>
+                        </div>
+                      )}
+                      {user.dp20_expiry && new Date(user.dp20_expiry) > new Date() && new Date(user.dp20_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
+                        <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                          <p className="text-sm text-orange-700 font-medium">
+                            {language === 'zh' ? '⚠️ 您的DP20套票即將到期' : '⚠️ Your DP20 package is expiring soon'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DP20 Cost Info */}
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-green-700 font-medium">{t.booking.dp20Required}</span>
+                        <span className="text-sm text-gray-600">{language === 'zh' ? '(10:00-18:30)' : '(10:00 AM - 6:30 PM)'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Time display for DP20 (fixed daily slot) */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600 mb-1">{language === 'zh' ? '使用時段' : 'Time Slot'}</p>
+                    <p className="text-lg font-semibold text-gray-800">10:00 AM - 6:30 PM</p>
+                    <p className="text-xs text-gray-500 mt-1">{language === 'zh' ? '固定時段' : 'Fixed time slot'}</p>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
 

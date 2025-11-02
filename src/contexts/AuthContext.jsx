@@ -214,9 +214,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateUserTokens = async (userId, newTokenCount, isTopUp = false) => {
+  const updateUserTokens = async (userId, newTokenCount, isTopUp = false, reason = '') => {
     try {
-      const result = await userService.updateTokens(userId, newTokenCount, isTopUp);
+      const result = await userService.updateTokens(userId, newTokenCount, isTopUp, reason);
 
       if (result.success && userId === user?.id) {
         setProfile(result.profile);
@@ -229,9 +229,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const assignBRPackage = async (userId, packageType, adminId) => {
+  const assignBRPackage = async (userId, packageType, adminId, reason = '') => {
     try {
-      console.log('🎫 Assigning BR package:', { userId, packageType, adminId });
+      console.log('🎫 Assigning BR package:', { userId, packageType, adminId, reason });
       const brAmount = packageType === 'BR15' ? 15 : 30;
       const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
 
@@ -302,7 +302,8 @@ export const AuthProvider = ({ children }) => {
           user_id: userId,
           package_type: packageType,
           br_amount: brAmount,
-          assigned_by: adminId
+          assigned_by: adminId,
+          reason: reason || null
         });
 
       if (historyError) {
@@ -399,6 +400,182 @@ export const AuthProvider = ({ children }) => {
       return { success: true, profile: updatedUser };
     } catch (error) {
       console.error('❌ Deduct BR balance error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const assignDP20Package = async (userId, adminId, reason = '') => {
+    try {
+      console.log('🎫 Assigning DP20 package:', { userId, adminId, reason });
+
+      // Get current user data
+      console.log('📖 Fetching current balance...');
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('dp20_balance, dp20_expiry')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('✅ Current data:', userData);
+      const currentBalance = userData.dp20_balance || 0;
+      const newBalance = currentBalance + 20;
+      const newExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days from now
+      console.log('💰 Balance update:', { currentBalance, newBalance, newExpiry });
+
+      // Update user balance and expiry
+      console.log('💾 Updating user balance and expiry...');
+      const { data: updatedUsers, error: updateError } = await supabase
+        .from('users')
+        .update({
+          dp20_balance: newBalance,
+          dp20_expiry: newExpiry
+        })
+        .eq('id', userId)
+        .select();
+
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Update response:', updatedUsers);
+
+      // Get the updated user
+      const updatedUser = Array.isArray(updatedUsers) && updatedUsers.length > 0
+        ? updatedUsers[0]
+        : updatedUsers;
+
+      console.log('✅ User updated:', updatedUser);
+
+      // If no data returned, fetch the user again
+      if (!updatedUser) {
+        console.log('⚠️ No data returned from update, fetching user...');
+        const { data: fetchedUser, error: refetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (refetchError) {
+          console.error('❌ Refetch error:', refetchError);
+          console.log('ℹ️ Continuing anyway - update likely succeeded');
+        } else {
+          console.log('✅ Refetched user:', fetchedUser);
+          return { success: true, profile: fetchedUser };
+        }
+      }
+
+      // Record in package history
+      console.log('📝 Recording in package history...');
+      const { error: historyError } = await supabase
+        .from('package_history')
+        .insert({
+          user_id: userId,
+          package_type: 'DP20',
+          br_amount: 20,
+          assigned_by: adminId,
+          reason: reason || null
+        });
+
+      if (historyError) {
+        console.error('⚠️ History error (non-critical):', historyError);
+        // Don't throw - history is optional
+      } else {
+        console.log('✅ History recorded');
+      }
+
+      // Update local state if it's the current user
+      if (userId === user?.id) {
+        setProfile(updatedUser);
+      }
+
+      return { success: true, profile: updatedUser };
+    } catch (error) {
+      console.error('❌ Assign DP20 package error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const deductDP20Balance = async (userId) => {
+    try {
+      console.log('=== DEDUCT DP20 BALANCE DEBUG ===');
+      console.log('💳 Input params:', { userId });
+
+      // Get current balance from database
+      console.log('📖 Fetching FRESH balance from database...');
+      const { data: userData, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('✅ Fresh user data from DB:', userData);
+      const currentBalance = userData.dp20_balance || 0;
+      const expiry = userData.dp20_expiry;
+
+      console.log('💰 Current DP20 balance:', currentBalance);
+      console.log('📅 Expiry date:', expiry);
+
+      // Check if expired
+      if (expiry && new Date(expiry) < new Date()) {
+        console.error('❌ DP20 PACKAGE EXPIRED!');
+        console.error('❌ Expiry date:', expiry);
+        return {
+          success: false,
+          error: 'DP20 package has expired.'
+        };
+      }
+
+      // Check if sufficient balance
+      if (currentBalance < 1) {
+        console.error('❌ INSUFFICIENT DP20 BALANCE!');
+        console.error('❌ Current:', currentBalance);
+        return {
+          success: false,
+          error: `Insufficient DP20 balance. You have ${currentBalance} visits remaining.`
+        };
+      }
+
+      const newBalance = currentBalance - 1;
+      console.log('💰 New balance will be:', newBalance);
+
+      // Update balance
+      console.log('💾 Updating balance...');
+      const { data: updatedUsers, error: updateError } = await supabase
+        .from('users')
+        .update({ dp20_balance: newBalance })
+        .eq('id', userId)
+        .select();
+
+      if (updateError) {
+        console.error('❌ Update error:', updateError);
+        throw updateError;
+      }
+
+      const updatedUser = Array.isArray(updatedUsers) && updatedUsers.length > 0
+        ? updatedUsers[0]
+        : updatedUsers;
+
+      console.log('✅ DP20 balance updated successfully:', updatedUser);
+
+      // Update local state if it's the current user
+      if (userId === user?.id) {
+        setProfile(updatedUser);
+      }
+
+      return { success: true, profile: updatedUser };
+    } catch (error) {
+      console.error('❌ Deduct DP20 balance error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -508,6 +685,8 @@ export const AuthProvider = ({ children }) => {
     updateUserTokens,
     assignBRPackage,
     deductBRBalance,
+    assignDP20Package,
+    deductDP20Balance,
     updateUserRole,
     changePassword,
     resetPassword,

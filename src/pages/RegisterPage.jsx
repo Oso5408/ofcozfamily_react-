@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
 } from '@/utils/validation';
 
 export const RegisterPage = () => {
+  const location = useLocation();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -38,6 +39,9 @@ export const RegisterPage = () => {
   });
   const { register } = useAuth();
   const { language } = useLanguage();
+
+  // Get returnUrl from location state (set by LoginPromptModal)
+  const returnUrl = location.state?.returnUrl || '/dashboard';
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -166,10 +170,10 @@ export const RegisterPage = () => {
             title: language === 'zh' ? '註冊成功！' : 'Registration Successful!',
             description: language === 'zh' ? '歡迎加入Ofcoz Family！' : 'Welcome to the Ofcoz Family!',
           });
-          console.log('✅ Auto-login successful, redirecting to dashboard...');
+          console.log('✅ Auto-login successful, redirecting...');
           setTimeout(() => {
-            console.log('🏠 Navigating to dashboard');
-            navigate('/dashboard');
+            console.log('🏠 Navigating to:', returnUrl);
+            navigate(returnUrl);
           }, 500);
         }
       } else {

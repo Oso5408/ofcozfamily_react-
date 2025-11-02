@@ -47,14 +47,15 @@ export const common = {
     reviews: "reviews",
     roomNames: {
       "Room A": "Room A",
-      "Room B": "Room B", 
+      "Room B": "Room B",
       "Room C": "Room C",
       "Room D": "Room D",
       "Room E": "Room E",
       "Room F": "Room F",
       "Room G": "Room G",
       "Room H": "Room H",
-      "One Day Pass": "One Day Pass"
+      "One Day Pass": "One Day Pass",
+      "Lobby Seat": "Lobby Seat"
     },
     roomDescriptions: {
       "Room A": `*Workspace is approx. 60 sq. ft., suitable for 1-6 people.
@@ -92,7 +93,14 @@ export const common = {
 *To avoid disturbing other tenants, please return the room on time.
 *The center reserves the right to make temporary room adjustments based on the day's situation.
 *In support of environmental protection, please bring your own lidded water bottle.`,
-      "One Day Pass": "Enjoy a workspace seat in the main hall and access to all public facilities from 10:00 - 18:30."
+      "One Day Pass": "Enjoy a workspace seat in the main hall and access to all public facilities from 10:00 - 18:30.",
+      "LobbySeatDescription": `*Enjoy a comfortable seat in our lobby area with access to WiFi and cat-friendly environment.
+*Operating hours: 10:00 AM - 6:30 PM (10:00-18:30).
+*Day Pass Package (DP20): 20 visits for $1000, valid for 90 days from purchase.
+*Single visit: $100 per person.
+*Maximum 4 people per time slot.
+*Perfect for working, reading, or enjoying time with our cats in a shared space.
+*Please be considerate of other guests and maintain a quiet environment.`
     },
     roomFeatures: {
       "Cat-friendly furniture": "Cat-friendly furniture",

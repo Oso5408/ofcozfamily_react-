@@ -98,15 +98,38 @@ export const ProfileSection = () => {
                 <span className="token-icon"></span>
                 {user.tokens || 0} {language === 'zh' ? '代幣' : 'Tokens'}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <div className="px-3 py-1.5 bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 rounded-full text-sm font-semibold">
                   BR15: {user.br15_balance || 0}
                 </div>
                 <div className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-700 rounded-full text-sm font-semibold">
                   BR30: {user.br30_balance || 0}
                 </div>
+                <div className="px-3 py-1.5 bg-gradient-to-r from-green-100 to-teal-200 text-green-700 rounded-full text-sm font-semibold">
+                  DP20: {user.dp20_balance || 0}
+                </div>
               </div>
             </div>
+            {user.dp20_expiry && (
+              <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                <p className="text-xs text-green-700">
+                  {language === 'zh' ? 'DP20 有效期至：' : 'DP20 valid until: '}
+                  <span className="font-semibold">
+                    {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                  </span>
+                  {new Date(user.dp20_expiry) < new Date() && (
+                    <span className="ml-2 text-red-600 font-semibold">
+                      ({language === 'zh' ? '已過期' : 'Expired'})
+                    </span>
+                  )}
+                  {new Date(user.dp20_expiry) > new Date() && new Date(user.dp20_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) && (
+                    <span className="ml-2 text-orange-600 font-semibold">
+                      ({language === 'zh' ? '即將到期' : 'Expiring soon'})
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
             <p className="text-sm text-amber-600 mt-2">
               {t.dashboard.topUpMessage}
             </p>

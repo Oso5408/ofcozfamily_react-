@@ -11,7 +11,7 @@ import { PaymentConfirmModal } from './PaymentConfirmModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { generateReceiptNumber } from '@/lib/utils';
-import { bookingService } from '@/services';
+import { bookingService, emailService } from '@/services';
 import { openGoogleCalendar } from '@/lib/calendarUtils';
 import {
   AlertDialog,
@@ -362,18 +362,36 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         return;
       }
 
+      // Send booking confirmation email
+      console.log('📧 Sending confirmation email to user...');
+      const normalizedBooking = normalizeBooking(result.booking || booking);
+      const emailResult = await emailService.sendBookingConfirmation(normalizedBooking, language);
+
+      if (!emailResult.success) {
+        console.error('❌ Failed to send confirmation email:', emailResult.error);
+        // Still show success for booking confirmation, but warn about email
+        toast({
+          title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
+          description: language === 'zh'
+            ? '預約已確認，但電郵發送失敗。請手動通知客戶。'
+            : 'Booking confirmed, but email failed to send. Please notify customer manually.',
+          variant: 'warning',
+        });
+      } else {
+        console.log('✅ Confirmation email sent successfully');
+        toast({
+          title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
+          description: language === 'zh'
+            ? '預約已確認，確認電郵已發送給客戶。'
+            : 'Booking confirmed. Confirmation email has been sent to customer.',
+        });
+      }
+
       // Reload all bookings from Supabase
       const bookingsResult = await bookingService.getAllBookings();
       if (bookingsResult.success) {
         setBookings(bookingsResult.bookings);
       }
-
-      toast({
-        title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
-        description: language === 'zh'
-          ? '預約已確認，客戶將收到通知。'
-          : 'Booking confirmed. Customer will be notified.',
-      });
 
       // Close the modal
       setShowReceiptModal(false);

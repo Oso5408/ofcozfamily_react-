@@ -94,5 +94,17 @@ export const roomsData = [
     bookingOptions: ['token', 'cash'],
     prices: { token: 1, cash: { hourly: 120, daily: 600, monthly: 5000 } },
     hidden: false,
+  },
+  {
+    id: 9,
+    name: 'Lobby Seat',
+    capacity: 4,
+    features: ['Open seating area', 'Shared workspace', 'WiFi access', 'Cat-friendly environment'],
+    image: 'Comfortable lobby seating with cat-friendly atmosphere',
+    size: 'N/A',
+    description: 'LobbySeatDescription',
+    bookingOptions: ['cash', 'dp20'],
+    prices: { cash: { daily: 100 }, dp20: { perVisit: 1 } },
+    hidden: false,
   }
 ];

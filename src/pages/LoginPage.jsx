@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { sanitizeAndValidateEmail, sanitizeAndValidatePassword, loginRateLimiter
 
 export const LoginPage = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -29,6 +30,9 @@ export const LoginPage = () => {
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Get returnUrl from location state (set by LoginPromptModal or BookingPage)
+  const returnUrl = location.state?.returnUrl || '/dashboard';
 
   useEffect(() => {
     // Check if user just registered and needs to confirm email
@@ -104,7 +108,9 @@ export const LoginPage = () => {
           title: language === 'zh' ? '登入成功！' : 'Login Successful!',
           description: language === 'zh' ? '歡迎回來！' : 'Welcome back!'
         });
-        navigate('/dashboard');
+
+        // Navigate to returnUrl if provided, otherwise go to dashboard
+        navigate(returnUrl);
       } else {
         // Record failed attempt for rate limiting
         loginRateLimiter.recordFailedAttempt(emailValidation.sanitized);
