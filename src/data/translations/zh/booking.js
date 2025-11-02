@@ -5,6 +5,7 @@ export const booking = {
     fullName: "姓名 *",
     email: "郵箱 *",
     phone: "電話 *",
+    useAccountInfo: "使用我的帳戶資料",
     date: "日期 *",
     startTime: "開始時間 *",
     endTime: "結束時間 *",

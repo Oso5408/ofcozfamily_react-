@@ -60,6 +60,7 @@ export const BookingModal = ({
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [purposeError, setPurposeError] = useState(false);
   const [noSpecialRequests, setNoSpecialRequests] = useState(false);
+  const [useAccountInfo, setUseAccountInfo] = useState(false);
   const hasRefreshedProfile = useRef(false);
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
@@ -70,16 +71,25 @@ export const BookingModal = ({
     { value: "12:00-22:00", label: "12:00 - 22:00" },
   ];
 
+  // Handle auto-fill when checkbox changes
   useEffect(() => {
-    if (user) {
+    if (useAccountInfo && user) {
       setBookingData(prev => ({
         ...prev,
-        name: user.name || '',
+        name: user.name || user.full_name || '',
         email: user.email || '',
         phone: user.phone || ''
       }));
+    } else if (!useAccountInfo && isOpen) {
+      // When unchecked, only clear if modal is open (to avoid clearing on close)
+      setBookingData(prev => ({
+        ...prev,
+        name: '',
+        email: '',
+        phone: ''
+      }));
     }
-  }, [user, isOpen, setBookingData]);
+  }, [useAccountInfo, user, isOpen, setBookingData]);
 
   // Refresh profile when modal opens to get latest BR balance (only once per open)
   useEffect(() => {
@@ -348,6 +358,20 @@ export const BookingModal = ({
         ) : (
           <form onSubmit={handleFormSubmit}>
           <div className="space-y-4 py-4">
+            {/* Auto-fill checkbox - only show if user is logged in */}
+            {user && (
+              <div className="flex items-center space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <Checkbox
+                  id="use-account-info"
+                  checked={useAccountInfo}
+                  onCheckedChange={(checked) => setUseAccountInfo(checked)}
+                />
+                <Label htmlFor="use-account-info" className="text-sm font-medium text-amber-800 cursor-pointer">
+                  {t.booking.useAccountInfo}
+                </Label>
+              </div>
+            )}
+
             <div><Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label><Input id="name" value={bookingData.name} onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="email" className="text-amber-800">{t.booking.email}</Label><Input id="email" type="email" value={bookingData.email} onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="phone" className="text-amber-800">{t.booking.phone}</Label><Input id="phone" required value={bookingData.phone} onChange={(e) => setBookingData({ ...bookingData, phone: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>

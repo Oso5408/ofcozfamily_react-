@@ -5,6 +5,7 @@ export const booking = {
     fullName: "Full Name *",
     email: "Email *",
     phone: "Phone *",
+    useAccountInfo: "Use my account information",
     date: "Date *",
     startTime: "Start Time *",
     endTime: "End Time *",

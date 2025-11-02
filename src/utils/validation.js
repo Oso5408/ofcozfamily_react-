@@ -74,6 +74,27 @@ export const validateName = (name) => {
 };
 
 /**
+ * Validate phone number (optional field)
+ * Allows common phone formats with digits, spaces, dashes, parentheses, and + sign
+ * Returns true if empty (optional) or if valid format
+ */
+export const validatePhone = (phone) => {
+  // Phone is optional - empty is valid
+  if (!phone || phone.trim().length === 0) {
+    return true;
+  }
+
+  // If phone is provided, check format
+  // Allows: digits, spaces, dashes, parentheses, and + sign
+  // Examples: +852 1234 5678, (123) 456-7890, 123-456-7890
+  const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+  const trimmedPhone = phone.trim();
+
+  // Must be valid format and reasonable length (5-20 characters)
+  return phoneRegex.test(trimmedPhone) && trimmedPhone.length >= 5 && trimmedPhone.length <= 20;
+};
+
+/**
  * Validate username
  * Requirements:
  * - Minimum 3 characters
@@ -128,6 +149,8 @@ export const getValidationMessages = (language = 'en') => {
       passwordSpecialChar: 'Password must contain at least one special character (@$!%*?&)',
       passwordMismatch: 'Passwords do not match',
       confirmPasswordRequired: 'Please confirm your password',
+      phoneInvalid: 'Please enter a valid phone number',
+      phoneOptional: 'Phone number (optional)',
     },
     zh: {
       emailInvalid: '請輸入有效的電郵地址',
@@ -147,6 +170,8 @@ export const getValidationMessages = (language = 'en') => {
       passwordSpecialChar: '密碼必須包含至少一個特殊字符 (@$!%*?&)',
       passwordMismatch: '密碼不匹配',
       confirmPasswordRequired: '請確認您的密碼',
+      phoneInvalid: '請輸入有效的電話號碼',
+      phoneOptional: '電話號碼（選填）',
     },
   };
 };

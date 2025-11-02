@@ -18,6 +18,7 @@ import {
   validatePassword,
   validateName,
   validateUsername,
+  validatePhone,
   getUsernameValidation,
   getValidationMessages,
 } from '@/utils/validation';
@@ -27,6 +28,7 @@ export const RegisterPage = () => {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +36,7 @@ export const RegisterPage = () => {
     name: false,
     username: false,
     email: false,
+    phone: false,
     password: false,
     confirmPassword: false,
   });
@@ -52,6 +55,7 @@ export const RegisterPage = () => {
   const usernameValidation = getUsernameValidation(username);
   const usernameError = touched.username && !usernameValidation.isValid;
   const emailError = touched.email && !validateEmail(email) ? validationMessages.emailInvalid : '';
+  const phoneError = touched.phone && phone && !validatePhone(phone) ? validationMessages.phoneInvalid : '';
   const passwordValidation = validatePassword(password);
   const passwordError = touched.password && password.length > 0 && !passwordValidation.isValid;
   const confirmPasswordError = touched.confirmPassword && password !== confirmPassword
@@ -67,6 +71,7 @@ export const RegisterPage = () => {
   const hasErrors = !validateName(name) ||
                     !validateUsername(username) ||
                     !validateEmail(email) ||
+                    (phone && !validatePhone(phone)) ||
                     !hasMinimumPasswordRequirements ||
                     password !== confirmPassword ||
                     password.length === 0 ||
@@ -84,6 +89,7 @@ export const RegisterPage = () => {
       name: true,
       username: true,
       email: true,
+      phone: true,
       password: true,
       confirmPassword: true,
     });
@@ -141,7 +147,7 @@ export const RegisterPage = () => {
 
     try {
       console.log('🚀 Starting registration...');
-      const result = await register({ name, username, email, password, fullName: name, phone: '' });
+      const result = await register({ name, username, email, password, fullName: name, phone: phone.trim() });
       console.log('📝 Registration result:', result);
 
       if (result.success) {
@@ -305,6 +311,27 @@ export const RegisterPage = () => {
                   <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
                     <AlertCircle className="w-3 h-3" />
                     <span>{emailError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="phone" className="text-amber-800">
+                  {validationMessages.phoneOptional}
+                </Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onBlur={() => handleBlur('phone')}
+                  className={`border-amber-200 focus:border-amber-400 ${phoneError ? 'border-red-500' : ''}`}
+                  placeholder={language === 'zh' ? '例如: +852 1234 5678' : 'e.g. +852 1234 5678'}
+                />
+                {phoneError && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{phoneError}</span>
                   </div>
                 )}
               </div>
