@@ -9,6 +9,13 @@ export const booking = {
     date: "Date *",
     startTime: "Start Time *",
     endTime: "End Time *",
+    dateFilters: {
+      allDates: "All Dates",
+      today: "Today",
+      thisWeek: "This Week",
+      thisMonth: "This Month",
+      selectDate: "Select Date"
+    },
     guests: "Number of Guests",
     guest: "guest",
     purpose: "Business Nature",

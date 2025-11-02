@@ -124,6 +124,8 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [specificDate, setSpecificDate] = useState('');
 
   // Normalize all bookings
   const normalizedBookings = bookings.map(normalizeBooking);
@@ -411,6 +413,68 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     return user ? user.name : (language === 'zh' ? '訪客' : 'Guest');
   };
 
+  // Date filtering helper functions
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const bookingDate = new Date(dateString);
+    const today = new Date();
+    return bookingDate.toDateString() === today.toDateString();
+  };
+
+  const isThisWeek = (dateString) => {
+    if (!dateString) return false;
+    const bookingDate = new Date(dateString);
+    const today = new Date();
+
+    // Get the start of this week (Monday)
+    const startOfWeek = new Date(today);
+    const dayOfWeek = today.getDay();
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Sunday
+    startOfWeek.setDate(today.getDate() + diff);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Get the end of this week (Sunday)
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    return bookingDate >= startOfWeek && bookingDate <= endOfWeek;
+  };
+
+  const isThisMonth = (dateString) => {
+    if (!dateString) return false;
+    const bookingDate = new Date(dateString);
+    const today = new Date();
+    return bookingDate.getMonth() === today.getMonth() &&
+           bookingDate.getFullYear() === today.getFullYear();
+  };
+
+  const isSpecificDate = (dateString, targetDate) => {
+    if (!dateString || !targetDate) return false;
+    const bookingDate = new Date(dateString);
+    const target = new Date(targetDate);
+    return bookingDate.toDateString() === target.toDateString();
+  };
+
+  const matchesDateFilter = (booking) => {
+    if (dateFilter === 'all') return true;
+
+    const dateToCheck = booking.start_time || booking.startTimeFormatted;
+
+    switch (dateFilter) {
+      case 'today':
+        return isToday(dateToCheck);
+      case 'thisWeek':
+        return isThisWeek(dateToCheck);
+      case 'thisMonth':
+        return isThisMonth(dateToCheck);
+      case 'specific':
+        return isSpecificDate(dateToCheck, specificDate);
+      default:
+        return true;
+    }
+  };
+
   const getStatusText = (status) => {
     return t.booking.status[status] || status;
   };
@@ -424,11 +488,89 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     paid: language === 'zh' ? '已付款預約' : 'Paid Bookings',
   };
 
+  // Apply date filtering
+  const filteredByDateBookings = normalizedBookings.filter(matchesDateFilter);
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-amber-800 mb-6">
         {filterTitles[filterStatus]}
       </h2>
+
+      {/* Date Filter Buttons */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          onClick={() => setDateFilter('all')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            dateFilter === 'all'
+              ? 'bg-amber-500 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+          }`}
+        >
+          {t.booking.dateFilters.allDates}
+        </button>
+        <button
+          onClick={() => setDateFilter('today')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            dateFilter === 'today'
+              ? 'bg-amber-500 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+          }`}
+        >
+          {t.booking.dateFilters.today}
+        </button>
+        <button
+          onClick={() => setDateFilter('thisWeek')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            dateFilter === 'thisWeek'
+              ? 'bg-amber-500 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+          }`}
+        >
+          {t.booking.dateFilters.thisWeek}
+        </button>
+        <button
+          onClick={() => setDateFilter('thisMonth')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            dateFilter === 'thisMonth'
+              ? 'bg-amber-500 text-white'
+              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+          }`}
+        >
+          {t.booking.dateFilters.thisMonth}
+        </button>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={specificDate}
+            onChange={(e) => {
+              setSpecificDate(e.target.value);
+              if (e.target.value) {
+                setDateFilter('specific');
+              }
+            }}
+            className="px-4 py-2 rounded-lg border border-amber-200 focus:border-amber-400 focus:outline-none"
+          />
+          {specificDate && (
+            <button
+              onClick={() => {
+                setSpecificDate('');
+                setDateFilter('all');
+              }}
+              className="px-3 py-2 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors text-sm"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Show count of filtered bookings */}
+      {dateFilter !== 'all' && (
+        <div className="mb-4 text-sm text-amber-700">
+          {language === 'zh' ? '顯示' : 'Showing'} {filteredByDateBookings.length} {language === 'zh' ? '個預約' : 'bookings'}
+        </div>
+      )}
 
       {!bookings || bookings.length === 0 ? (
         <div className="text-center py-12">
@@ -437,9 +579,16 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
             {language === 'zh' ? '此類別暫無預約記錄' : 'No bookings in this category yet'}
           </p>
         </div>
+      ) : filteredByDateBookings.length === 0 ? (
+        <div className="text-center py-12">
+          <Calendar className="w-16 h-16 text-amber-300 mx-auto mb-4" />
+          <p className="text-amber-600 text-lg">
+            {language === 'zh' ? '所選日期範圍內無預約記錄' : 'No bookings found for the selected date range'}
+          </p>
+        </div>
       ) : (
         <div className="space-y-6">
-          {normalizedBookings.map((booking) => (
+          {filteredByDateBookings.map((booking) => (
             <motion.div
               key={booking.id}
               initial={{ opacity: 0, y: 20 }}

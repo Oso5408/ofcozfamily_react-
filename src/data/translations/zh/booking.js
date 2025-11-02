@@ -9,6 +9,13 @@ export const booking = {
     date: "日期 *",
     startTime: "開始時間 *",
     endTime: "結束時間 *",
+    dateFilters: {
+      allDates: "全部日期",
+      today: "今天",
+      thisWeek: "本週",
+      thisMonth: "本月",
+      selectDate: "選擇日期"
+    },
     guests: "客人數量",
     guest: "位客人",
     purpose: "業務性質",
