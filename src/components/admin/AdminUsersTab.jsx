@@ -44,9 +44,10 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
   console.log('👥 AdminUsersTab - Safe users count:', safeUsers.length);
   console.log('👥 AdminUsersTab - Sample user structure:', safeUsers[0]);
 
-  const nonAdminUsers = safeUsers.filter(u => !u.is_admin && !u.isAdmin);
-  console.log('👥 AdminUsersTab - Non-admin users:', nonAdminUsers);
-  console.log('👥 AdminUsersTab - Non-admin users count:', nonAdminUsers.length);
+  // Allow package assignment to all users, including admins
+  const allUsers = safeUsers;
+  console.log('👥 AdminUsersTab - All users (including admins):', allUsers);
+  console.log('👥 AdminUsersTab - All users count:', allUsers.length);
 
   const handleTokenUpdate = async (userId, operation) => {
     const targetUser = safeUsers.find(u => u.id === userId);
@@ -244,7 +245,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
             >
               <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
-              {nonAdminUsers.map(user => {
+              {allUsers.map(user => {
                 const userName = user.name || user.full_name || user.email;
                 console.log('📝 Rendering token dropdown option:', user.id, userName, user.email);
                 return (
@@ -313,7 +314,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
             >
               <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
-              {nonAdminUsers.map(user => {
+              {allUsers.map(user => {
                 const userName = user.name || user.full_name || user.email;
                 console.log('📝 Rendering BR dropdown option:', user.id, userName, user.email);
                 return (
@@ -388,7 +389,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white"
             >
               <option value="">{language === 'zh' ? '選擇用戶' : 'Select a user'}</option>
-              {nonAdminUsers.map(user => {
+              {allUsers.map(user => {
                 const userName = user.name || user.full_name || user.email;
                 console.log('📝 Rendering DP20 dropdown option:', user.id, userName, user.email);
                 return (

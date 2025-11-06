@@ -26,6 +26,7 @@ export const MultiStepBookingForm = ({
   setNoSpecialRequests,
   purposeError,
   totalPrice,
+  user,
 }) => {
   const { language } = useLanguage();
   const t = translations[language];
@@ -35,12 +36,47 @@ export const MultiStepBookingForm = ({
   const [timeOptions, setTimeOptions] = useState([]);
   const [endTimeOptions, setEndTimeOptions] = useState([]);
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
+  const [useAccountInfo, setUseAccountInfo] = useState(false);
 
-  const steps = [
-    { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
-    { label: language === 'zh' ? '付款方式' : 'Payment Method' },
-    { label: language === 'zh' ? '上傳收據' : 'Upload Receipt' },
-  ];
+  // Check if this is Day Pass (always daily rental, no tabs needed)
+  const isDayPass = selectedRoom?.id === 9;
+
+  // Check if using DP20 payment (no receipt upload needed)
+  const isDP20 = bookingData.bookingType === 'dp20';
+
+  // Dynamic steps: DP20 has only 2 steps (skip receipt upload)
+  const steps = isDP20
+    ? [
+        { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
+        { label: language === 'zh' ? '確認預約' : 'Confirm Booking' },
+      ]
+    : [
+        { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
+        { label: language === 'zh' ? '付款方式' : 'Payment Method' },
+        { label: language === 'zh' ? '上傳收據' : 'Upload Receipt' },
+      ];
+
+  const maxSteps = steps.length;
+
+  // Handle auto-fill when checkbox changes
+  useEffect(() => {
+    if (useAccountInfo && user) {
+      setBookingData(prev => ({
+        ...prev,
+        name: user.name || user.full_name || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      }));
+    } else if (!useAccountInfo) {
+      // When unchecked, clear the fields
+      setBookingData(prev => ({
+        ...prev,
+        name: '',
+        email: '',
+        phone: ''
+      }));
+    }
+  }, [useAccountInfo, user, setBookingData]);
 
   // Fetch available time slots when date or room changes
   useEffect(() => {
@@ -88,7 +124,7 @@ export const MultiStepBookingForm = ({
   }, [bookingData.date, bookingData.startTime, selectedRoom?.id]);
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (currentStep < maxSteps) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -143,14 +179,23 @@ export const MultiStepBookingForm = ({
     <div className="space-y-4">
       {/* Rental Type Selection */}
       <Tabs
-        value={bookingData.rentalType || 'hourly'}
-        onValueChange={(val) => setBookingData(prev => ({...prev, rentalType: val, startTime: '', endTime: ''}))}
+        value={isDayPass ? 'hourly' : (bookingData.rentalType || 'hourly')}
+        onValueChange={(val) => setBookingData(prev => ({
+          ...prev,
+          rentalType: val,
+          // Preserve Day Pass fixed times, reset for other rooms
+          startTime: isDayPass ? '10:00' : '',
+          endTime: isDayPass ? '18:30' : ''
+        }))}
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
-          <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
-        </TabsList>
+        {/* Hide rental type tabs for Day Pass (always daily) */}
+        {!isDayPass && (
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
+            <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="monthly" className="pt-4">
           <Card className="p-6 bg-amber-50 border-amber-200">
@@ -174,6 +219,69 @@ export const MultiStepBookingForm = ({
 
         <TabsContent value="hourly" className="pt-4">
           <div className="space-y-4">
+            {/* Payment Method Selection for Day Pass (Cash or DP20) */}
+            {isDayPass && selectedRoom?.bookingOptions.includes('dp20') && (
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-amber-200 mb-4">
+                <h4 className="text-amber-800 font-semibold mb-3">{language === 'zh' ? '付款方式' : 'Payment Method'}</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBookingData(prev => ({ ...prev, bookingType: 'cash' }))}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      bookingData.bookingType === 'cash'
+                        ? 'border-amber-500 bg-amber-100'
+                        : 'border-gray-300 bg-white hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-amber-700">
+                      {t.booking.cash}
+                    </div>
+                    <div className="text-xs mt-1 text-gray-600">
+                      {language === 'zh' ? '網上支付' : 'Online Payment'}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingData(prev => ({ ...prev, bookingType: 'dp20' }))}
+                    disabled={user && (user.dp20_balance || 0) === 0}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      bookingData.bookingType === 'dp20'
+                        ? 'border-green-500 bg-green-100'
+                        : (user && (user.dp20_balance || 0) === 0)
+                        ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                        : 'border-gray-300 bg-white hover:border-green-300'
+                    }`}
+                  >
+                    <div className={`text-sm font-semibold ${(user && (user.dp20_balance || 0) === 0) ? 'text-gray-400' : 'text-green-700'}`}>
+                      {t.booking.dp20Package}
+                    </div>
+                    <div className={`text-xs mt-1 ${(user && (user.dp20_balance || 0) === 0) ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {user
+                        ? `${language === 'zh' ? 'DP20餘額' : 'DP20 Balance'}: ${user.dp20_balance || 0}`
+                        : (language === 'zh' ? '套票' : 'Package')}
+                    </div>
+                    {user && (user.dp20_balance || 0) === 0 && (
+                      <div className="text-xs text-red-400 mt-1">{language === 'zh' ? '無餘額' : 'No balance'}</div>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-fill checkbox - only show if user is logged in */}
+            {user && (
+              <div className="flex items-center space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <Checkbox
+                  id="use-account-info"
+                  checked={useAccountInfo}
+                  onCheckedChange={(checked) => setUseAccountInfo(checked)}
+                />
+                <Label htmlFor="use-account-info" className="text-sm font-medium text-amber-800 cursor-pointer">
+                  {t.booking.useAccountInfo}
+                </Label>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label>
               <Input
@@ -211,13 +319,33 @@ export const MultiStepBookingForm = ({
         <Input
           type="date"
           value={bookingData.date || ''}
-          onChange={(e) => setBookingData({ ...bookingData, date: e.target.value, startTime: '', endTime: '' })}
+          onChange={(e) => setBookingData({
+            ...bookingData,
+            date: e.target.value,
+            // Preserve Day Pass fixed times, reset for other rooms
+            startTime: isDayPass ? '10:00' : '',
+            endTime: isDayPass ? '18:30' : ''
+          })}
           className="border-amber-200 focus:border-amber-400"
           min={new Date().toISOString().split('T')[0]}
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Time Selection: Show fixed hours for Day Pass, dropdowns for other rooms */}
+      {isDayPass ? (
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 className="font-semibold text-blue-800 mb-2 text-center">
+            {language === 'zh' ? 'Day Pass 使用時段' : 'Day Pass Time Slot'}
+          </h4>
+          <div className="text-center py-3">
+            <p className="text-3xl font-bold text-blue-800">10:00 AM - 6:30 PM</p>
+            <p className="text-sm text-blue-600 mt-2">
+              {language === 'zh' ? '固定時段，無需選擇' : 'Fixed hours, no selection needed'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
         <div>
           <Label className="text-amber-800">{t.booking.startTime}</Label>
           <Select
@@ -254,6 +382,7 @@ export const MultiStepBookingForm = ({
           </Select>
         </div>
       </div>
+      )}
 
       <div>
         <Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label>
@@ -337,7 +466,8 @@ export const MultiStepBookingForm = ({
         )}
       </div>
 
-            {totalPrice > 0 && (
+            {/* Only show total price for cash payments, not for DP20 */}
+            {totalPrice > 0 && !isDP20 && (
               <div className="p-4 bg-blue-50 rounded-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
@@ -399,6 +529,103 @@ export const MultiStepBookingForm = ({
         <p className="text-amber-800 font-semibold">
           {language === 'zh' ? '總金額：' : 'Total Amount: '}
           <span className="text-2xl">HK${totalPrice}</span>
+        </p>
+      </div>
+    </div>
+  );
+
+  // Step 2 for DP20: Show DP20 balance and confirmation
+  const renderStep2DP20 = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-2xl font-bold text-amber-800 mb-4">
+          {language === 'zh' ? '確認預約' : 'Confirm Booking'}
+        </h3>
+        <p className="text-amber-700 mb-6">
+          {language === 'zh' ? '請確認您的預約詳情' : 'Please confirm your booking details'}
+        </p>
+      </div>
+
+      {/* DP20 Balance Display */}
+      {user && !user.isAdmin && (
+        <div className="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg border-2 border-green-200">
+          <h4 className="text-green-800 font-semibold mb-2">{t.booking.dp20Package}</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">{language === 'zh' ? '剩餘次數:' : 'Remaining visits:'}</span>
+              <span className={`font-bold ${(user.dp20_balance || 0) > 5 ? 'text-green-700' : (user.dp20_balance || 0) > 0 ? 'text-orange-600' : 'text-red-600'}`}>
+                {t.booking.dp20Balance.replace('{balance}', user.dp20_balance || 0)}
+              </span>
+            </div>
+            {user.dp20_expiry && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">{language === 'zh' ? '有效期至:' : 'Valid until:'}</span>
+                <span className={`text-sm font-medium ${new Date(user.dp20_expiry) < new Date() ? 'text-red-600' : new Date(user.dp20_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ? 'text-orange-600' : 'text-green-700'}`}>
+                  {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* DP20 Cost Info */}
+          <div className="mt-4 p-3 bg-white rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <span className="text-green-700 font-medium">{t.booking.dp20Required}</span>
+              <span className="text-sm text-gray-600">{language === 'zh' ? '(10:00-18:30)' : '(10:00 AM - 6:30 PM)'}</span>
+            </div>
+          </div>
+
+          {/* Warning messages */}
+          {(user.dp20_balance || 0) === 0 && (
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800 font-medium mb-2">
+                {language === 'zh' ? '📢 您目前沒有DP20套票' : '📢 You don\'t have a DP20 package yet'}
+              </p>
+              <p className="text-xs text-blue-700">
+                {t.booking.dp20PackageInfo}
+              </p>
+            </div>
+          )}
+          {user.dp20_expiry && new Date(user.dp20_expiry) < new Date() && (
+            <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+              <p className="text-sm text-red-700 font-medium">
+                {t.booking.dp20Expired}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Booking Summary */}
+      <Card className="p-6 bg-white border-2 border-amber-200">
+        <h4 className="text-xl font-bold text-amber-900 mb-4">
+          {language === 'zh' ? '預約摘要' : 'Booking Summary'}
+        </h4>
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span className="text-gray-600">{language === 'zh' ? '房間:' : 'Room:'}</span>
+            <span className="font-semibold">{t.rooms.roomNames[selectedRoom.name]}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">{language === 'zh' ? '日期:' : 'Date:'}</span>
+            <span className="font-semibold">{bookingData.date}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">{language === 'zh' ? '時段:' : 'Time:'}</span>
+            <span className="font-semibold">10:00 AM - 6:30 PM</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">{language === 'zh' ? '付款方式:' : 'Payment:'}</span>
+            <span className="font-semibold text-green-700">DP20 {language === 'zh' ? '套票' : 'Package'}</span>
+          </div>
+        </div>
+      </Card>
+
+      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+        <p className="text-green-800 font-semibold text-center">
+          {language === 'zh'
+            ? '確認後將扣除 1 次 DP20 使用次數'
+            : '1 DP20 visit will be deducted upon confirmation'}
         </p>
       </div>
     </div>
@@ -482,8 +709,8 @@ export const MultiStepBookingForm = ({
 
       <div className="min-h-[500px]">
         {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
+        {currentStep === 2 && (isDP20 ? renderStep2DP20() : renderStep2())}
+        {currentStep === 3 && !isDP20 && renderStep3()}
       </div>
 
       <div className="flex justify-between pt-6 border-t border-amber-200">
@@ -510,7 +737,7 @@ export const MultiStepBookingForm = ({
           </Button>
         )}
 
-        {currentStep < 3 ? (
+        {currentStep < maxSteps ? (
           <Button
             type="button"
             onClick={handleNext}
@@ -524,11 +751,13 @@ export const MultiStepBookingForm = ({
           <Button
             type="button"
             onClick={(e) => {
-              // Attach receipt image to booking data before submitting
-              setBookingData(prev => ({ ...prev, receiptImage: receiptImage }));
+              // For cash: attach receipt image; for DP20: no receipt needed
+              if (!isDP20) {
+                setBookingData(prev => ({ ...prev, receiptImage: receiptImage }));
+              }
               onSubmit(e);
             }}
-            disabled={!receiptImage}
+            disabled={!isDP20 && !receiptImage}
             className="ml-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
           >
             {language === 'zh' ? '確認預約' : 'Confirm Booking'}

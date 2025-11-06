@@ -83,10 +83,10 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
 
   useEffect(() => {
     if (room) {
-      // Get room descriptions from translations
+      // Get room descriptions from database or fallback to translations
       const roomKey = room.description || room.name;
-      const enDescription = t.rooms.roomDescriptions?.[roomKey] || '';
-      const zhDescription = translations['zh'].rooms.roomDescriptions?.[roomKey] || '';
+      const enDescription = room.description_en || t.rooms.roomDescriptions?.[roomKey] || '';
+      const zhDescription = room.description_zh || translations['zh'].rooms.roomDescriptions?.[roomKey] || '';
 
       setFormData({
         descriptionEn: enDescription,
@@ -294,6 +294,19 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
     try {
       console.log('💾 Saving room...', { roomId: room.id, imagesCount: images.length });
 
+      // Save descriptions first (always save descriptions)
+      const descResult = await roomService.updateRoomDescriptions(
+        room.id,
+        formData.descriptionEn,
+        formData.descriptionZh
+      );
+
+      if (!descResult.success) {
+        throw new Error(descResult.error);
+      }
+
+      console.log('✅ Descriptions saved');
+
       // Check if there are any images to save
       if (images.length > 0) {
         // Check if there are any new images to upload
@@ -340,33 +353,27 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
           title: language === 'zh' ? '✅ 房間已更新' : '✅ Room Updated',
           description: language === 'zh'
             ? newImages.length > 0
-              ? '房間圖片已成功更新'
-              : '圖片順序和顯示設定已更新'
+              ? '房間描述和圖片已成功更新'
+              : '房間描述和圖片設定已更新'
             : newImages.length > 0
-              ? 'Room images have been successfully updated'
-              : 'Image order and visibility updated',
+              ? 'Room descriptions and images updated successfully'
+              : 'Room descriptions and image settings updated',
         });
 
         if (onSuccess) {
           onSuccess(updateResult.room || room);
         }
       } else {
-        // No images - just save the room data (e.g., descriptions)
-        console.log('📝 No images to save, updating room with empty images array');
-
-        const updateResult = await roomService.updateRoomImages(room.id, []);
-
-        if (!updateResult.success) {
-          throw new Error(updateResult.error);
-        }
+        // No images - descriptions already saved above
+        console.log('📝 No images - descriptions already saved');
 
         toast({
           title: language === 'zh' ? '✅ 房間已更新' : '✅ Room Updated',
-          description: language === 'zh' ? '房間資料已更新' : 'Room data updated',
+          description: language === 'zh' ? '房間描述已成功更新' : 'Room descriptions updated successfully',
         });
 
         if (onSuccess) {
-          onSuccess(updateResult.room || room);
+          onSuccess(descResult.room || room);
         }
       }
 
@@ -398,6 +405,36 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Description Section */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="description-en" className="text-amber-800 font-semibold mb-2 block">
+                {language === 'zh' ? '房間描述（英文）' : 'Room Description (English)'}
+              </Label>
+              <Textarea
+                id="description-en"
+                value={formData.descriptionEn}
+                onChange={(e) => setFormData({ ...formData, descriptionEn: e.target.value })}
+                placeholder={language === 'zh' ? '輸入房間的英文描述...' : 'Enter room description in English...'}
+                className="border-amber-200 focus:border-amber-400 min-h-[100px]"
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label htmlFor="description-zh" className="text-amber-800 font-semibold mb-2 block">
+                {language === 'zh' ? '房間描述（中文）' : 'Room Description (Chinese)'}
+              </Label>
+              <Textarea
+                id="description-zh"
+                value={formData.descriptionZh}
+                onChange={(e) => setFormData({ ...formData, descriptionZh: e.target.value })}
+                placeholder={language === 'zh' ? '輸入房間的中文描述...' : 'Enter room description in Chinese...'}
+                className="border-amber-200 focus:border-amber-400 min-h-[100px]"
+                rows={4}
+              />
+            </div>
+          </div>
+
           {/* Image Upload Section */}
           <div>
             <Label className="text-amber-800 font-semibold mb-2 block">

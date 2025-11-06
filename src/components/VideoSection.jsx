@@ -28,15 +28,28 @@ export const VideoSection = () => {
           </p>
 
           {/* Video Container */}
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
-            <iframe
-              className="absolute top-0 left-0 w-full h-full"
-              src="https://www.youtube.com/embed/S2p_b_YbeBA"
-              title="Ofcoz Family Introduction Video"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            ></iframe>
+          <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black">
+            <video
+              className="w-full h-full object-cover"
+              controls
+              autoPlay
+              muted
+              loop
+              controlsList="nodownload"
+              playsInline
+              preload="auto"
+              onEnded={(e) => e.target.play()}
+            >
+              <source
+                src="https://rlfrwsyqletwegvflqip.supabase.co/storage/v1/object/public/videos/hero_video.mp4"
+                type="video/mp4"
+              />
+              <p className="text-white p-4">
+                {language === 'zh'
+                  ? '您的瀏覽器不支援影片播放。'
+                  : 'Your browser does not support the video tag.'}
+              </p>
+            </video>
           </div>
         </motion.div>
       </div>

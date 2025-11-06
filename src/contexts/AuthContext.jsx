@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService, userService } from '@/services';
+import { authService, userService, emailService } from '@/services';
 import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext();
@@ -119,9 +119,10 @@ export const AuthProvider = ({ children }) => {
         userData.email,
         userData.password,
         {
-          fullName: userData.fullName,
+          title: userData.title,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
           phone: userData.phone,
-          username: userData.username, // Add username
         }
       );
 
@@ -235,11 +236,11 @@ export const AuthProvider = ({ children }) => {
       const brAmount = packageType === 'BR15' ? 15 : 30;
       const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
 
-      // Get current user data
+      // Get current user data (including email and name for email notification)
       console.log('📖 Fetching current balance...');
       const { data: userData, error: fetchError } = await supabase
         .from('users')
-        .select(balanceField)
+        .select(`${balanceField}, email, full_name`)
         .eq('id', userId)
         .single();
 
@@ -316,6 +317,30 @@ export const AuthProvider = ({ children }) => {
       // Update local state if it's the current user
       if (userId === user?.id) {
         setProfile(updatedUser);
+      }
+
+      // Send package assignment email notification
+      console.log('📧 Sending package assignment email to user...');
+      try {
+        const emailResult = await emailService.sendPackageAssignedEmail(
+          userData.email,
+          userData.full_name,
+          packageType,
+          brAmount,
+          newBalance,
+          reason || 'Package purchase',
+          null, // BR packages don't have expiry
+          'zh' // Default to Chinese, could be made configurable
+        );
+
+        if (!emailResult.success) {
+          console.error('❌ Failed to send package assignment email:', emailResult.error);
+        } else {
+          console.log('✅ Package assignment email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('❌ Email error (non-critical):', emailError);
+        // Don't throw - email is optional
       }
 
       return { success: true, profile: updatedUser };
@@ -408,11 +433,11 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🎫 Assigning DP20 package:', { userId, adminId, reason });
 
-      // Get current user data
+      // Get current user data (including email and name for email notification)
       console.log('📖 Fetching current balance...');
       const { data: userData, error: fetchError } = await supabase
         .from('users')
-        .select('dp20_balance, dp20_expiry')
+        .select('dp20_balance, dp20_expiry, email, full_name')
         .eq('id', userId)
         .single();
 
@@ -492,6 +517,30 @@ export const AuthProvider = ({ children }) => {
       // Update local state if it's the current user
       if (userId === user?.id) {
         setProfile(updatedUser);
+      }
+
+      // Send package assignment email notification
+      console.log('📧 Sending DP20 package assignment email to user...');
+      try {
+        const emailResult = await emailService.sendPackageAssignedEmail(
+          userData.email,
+          userData.full_name,
+          'DP20',
+          20,
+          newBalance,
+          reason || 'Package purchase',
+          newExpiry, // DP20 packages have expiry
+          'zh' // Default to Chinese, could be made configurable
+        );
+
+        if (!emailResult.success) {
+          console.error('❌ Failed to send package assignment email:', emailResult.error);
+        } else {
+          console.log('✅ Package assignment email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('❌ Email error (non-critical):', emailError);
+        // Don't throw - email is optional
       }
 
       return { success: true, profile: updatedUser };

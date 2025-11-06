@@ -102,6 +102,11 @@ export const booking = {
       "直傳靈氣": "Jikiden Reiki",
       "其他": "Other",
     },
+    dayPassPurposes: {
+      "自修": "Self-Study",
+      "工作": "Work",
+      "其他": "Other",
+    },
     otherPurposePlaceholder: "Please specify other purpose...",
     status: {
       pending: "Awaiting Payment",

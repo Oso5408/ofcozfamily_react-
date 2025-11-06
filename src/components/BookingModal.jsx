@@ -63,7 +63,11 @@ export const BookingModal = ({
   const [useAccountInfo, setUseAccountInfo] = useState(false);
   const hasRefreshedProfile = useRef(false);
 
-  const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
+  // Use Day Pass purposes for room 9, regular purposes for other rooms
+  const isDayPass = selectedRoom?.id === 9;
+  const businessPurposes = isDayPass
+    ? ["自修", "工作", "其他"]
+    : ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
 
   const dailyTimeSlots = [
     { value: "10:00-20:00", label: "10:00 - 20:00" },
@@ -340,7 +344,7 @@ export const BookingModal = ({
           )}
         </DialogHeader>
 
-        {bookingData.bookingType === 'cash' && !selectedRoom?.bookingOptions?.includes('dp20') ? (
+        {bookingData.bookingType === 'cash' || bookingData.bookingType === 'dp20' ? (
           <MultiStepBookingForm
             selectedRoom={selectedRoom}
             bookingData={bookingData}
@@ -354,6 +358,7 @@ export const BookingModal = ({
             setNoSpecialRequests={setNoSpecialRequests}
             purposeError={purposeError}
             totalPrice={totalPrice}
+            user={user}
           />
         ) : (
           <form onSubmit={handleFormSubmit}>
@@ -375,9 +380,32 @@ export const BookingModal = ({
             <div><Label htmlFor="name" className="text-amber-800">{t.booking.fullName}</Label><Input id="name" value={bookingData.name} onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="email" className="text-amber-800">{t.booking.email}</Label><Input id="email" type="email" value={bookingData.email} onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
             <div><Label htmlFor="phone" className="text-amber-800">{t.booking.phone}</Label><Input id="phone" required value={bookingData.phone} onChange={(e) => setBookingData({ ...bookingData, phone: e.target.value })} className="border-amber-200 focus:border-amber-400" /></div>
-            <div><Label className="text-amber-800">{t.booking.date}</Label><Input type="date" value={bookingData.date || ''} onChange={(e) => setBookingData({ ...bookingData, date: e.target.value, startTime: '', endTime:'' })} className="border-amber-200 focus:border-amber-400" min={new Date().toISOString().split('T')[0]} max={getMaxDate()} /></div>
+            <div>
+              <Label className="text-amber-800">{t.booking.date}</Label>
+              <Input
+                type="date"
+                value={bookingData.date || ''}
+                onChange={(e) => setBookingData({
+                  ...bookingData,
+                  date: e.target.value,
+                  // Preserve Day Pass fixed times, reset for other rooms
+                  startTime: isDayPass ? '10:00' : '',
+                  endTime: isDayPass ? '18:30' : ''
+                })}
+                className="border-amber-200 focus:border-amber-400"
+                min={new Date().toISOString().split('T')[0]}
+                max={getMaxDate()}
+              />
+            </div>
             
-            <Tabs value={bookingData.bookingType} onValueChange={(val) => setBookingData(prev => ({...prev, bookingType: val, rentalType: val === 'dp20' ? 'daily' : 'hourly', startTime: '', endTime: ''}))} className="w-full">
+            <Tabs value={bookingData.bookingType} onValueChange={(val) => setBookingData(prev => ({
+              ...prev,
+              bookingType: val,
+              rentalType: val === 'dp20' ? 'daily' : 'hourly',
+              // Preserve Day Pass fixed times, reset for other rooms
+              startTime: isDayPass ? '10:00' : '',
+              endTime: isDayPass ? '18:30' : ''
+            }))} className="w-full">
               <TabsList className={`grid w-full ${selectedRoom?.bookingOptions.filter(opt => opt !== 'token' || selectedRoom.name !== 'Room C').length === 3 ? 'grid-cols-3' : selectedRoom?.bookingOptions.filter(opt => opt !== 'token' || selectedRoom.name !== 'Room C').length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {selectedRoom?.bookingOptions.includes('token') && selectedRoom.name !== 'Room C' && (
                   <TabsTrigger value="token">{t.booking.token}</TabsTrigger>
@@ -512,12 +540,42 @@ export const BookingModal = ({
               </TabsContent>
 
               <TabsContent value="cash" className="pt-4">
-                <Tabs value={bookingData.rentalType} onValueChange={(val) => setBookingData(prev => ({...prev, rentalType: val, startTime: '', endTime: ''}))} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
-                    <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="hourly" className="pt-4">
+                {isDayPass ? (
+                  /* Day Pass: Full day pass, no time selection */
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-blue-800 mb-2 text-center">
+                        {language === 'zh' ? 'Day Pass 使用時段' : 'Day Pass Time Slot'}
+                      </h4>
+                      <div className="text-center py-3">
+                        <p className="text-3xl font-bold text-blue-800">10:00 AM - 6:30 PM</p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          {language === 'zh'
+                            ? '全日通行證，固定時段'
+                            : 'Full day pass, fixed time slot'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', 100)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Tabs value={bookingData.rentalType} onValueChange={(val) => setBookingData(prev => ({
+                      ...prev,
+                      rentalType: val,
+                      // Preserve Day Pass fixed times, reset for other rooms
+                      startTime: isDayPass ? '10:00' : '',
+                      endTime: isDayPass ? '18:30' : ''
+                    }))} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="hourly">{t.booking.hourly}</TabsTrigger>
+                        <TabsTrigger value="monthly">{t.booking.monthly}</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="hourly" className="pt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-amber-800">{t.booking.startTime}</Label>
@@ -576,20 +634,22 @@ export const BookingModal = ({
                         </Select>
                       </div>
                     </div>
-                  </TabsContent>
-                  <TabsContent value="monthly" className="pt-4">
-                    <form onSubmit={handleMonthlyInquiry} className="space-y-4">
-                      <p className='text-sm text-amber-700'>{language === 'zh' ? '月租服務請直接聯絡我們查詢。' : 'For monthly rentals, please contact us directly.'}</p>
-                      <Button type="submit" className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">{t.booking.contactUs}</Button>
-                    </form>
-                  </TabsContent>
-                </Tabs>
-                {totalPrice > 0 && bookingData.rentalType !== 'monthly' && (
-                  <div className="p-4 bg-blue-50 rounded-lg mt-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
-                    </div>
-                  </div>
+                      </TabsContent>
+                      <TabsContent value="monthly" className="pt-4">
+                        <form onSubmit={handleMonthlyInquiry} className="space-y-4">
+                          <p className='text-sm text-amber-700'>{language === 'zh' ? '月租服務請直接聯絡我們查詢。' : 'For monthly rentals, please contact us directly.'}</p>
+                          <Button type="submit" className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">{t.booking.contactUs}</Button>
+                        </form>
+                      </TabsContent>
+                    </Tabs>
+                    {totalPrice > 0 && bookingData.rentalType !== 'monthly' && (
+                      <div className="p-4 bg-blue-50 rounded-lg mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsContent>
 
@@ -658,18 +718,46 @@ export const BookingModal = ({
                   </div>
                 )}
 
-                {/* Time display for DP20 (fixed daily slot) */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {/* Time display for DP20 (operating hours info) */}
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">{language === 'zh' ? '使用時段' : 'Time Slot'}</p>
-                    <p className="text-lg font-semibold text-gray-800">10:00 AM - 6:30 PM</p>
-                    <p className="text-xs text-gray-500 mt-1">{language === 'zh' ? '固定時段' : 'Fixed time slot'}</p>
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                      {language === 'zh' ? 'Day Pass 使用時段' : 'Day Pass Operating Hours'}
+                    </h4>
+                    <p className="text-2xl font-bold text-blue-800">10:00 AM - 6:30 PM</p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      {language === 'zh'
+                        ? '選擇日期即可，無需選擇時間'
+                        : 'Select date only, no time selection needed'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {language === 'zh'
+                        ? 'Day Pass 在營業時段內全天有效'
+                        : 'Day Pass is valid throughout operating hours'}
+                    </p>
                   </div>
                 </div>
               </TabsContent>
             </Tabs>
 
-            <div><Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label><Input id="guests" type="number" min="1" max={selectedRoom?.capacity} value={bookingData.guests} onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })} className="border-amber-200 focus:border-amber-400" /></div>
+            <div>
+              <Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label>
+              <Input
+                id="guests"
+                type="number"
+                min="1"
+                max={isDayPass ? 1 : selectedRoom?.capacity}
+                value={isDayPass ? 1 : bookingData.guests}
+                onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })}
+                className="border-amber-200 focus:border-amber-400"
+                disabled={isDayPass}
+              />
+              {isDayPass && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {language === 'zh' ? 'Day Pass 僅限1人使用' : 'Day Pass is limited to 1 person'}
+                </p>
+              )}
+            </div>
 
             {/* Projector Option for Room C and Room E */}
             {(selectedRoom?.id === 2 || selectedRoom?.id === 4) && (
@@ -707,7 +795,7 @@ export const BookingModal = ({
                       onCheckedChange={(checked) => handlePurposeChange(purpose, checked)}
                     />
                     <Label htmlFor={`purpose-${purpose}-${index}`} className="text-sm font-medium text-amber-700 cursor-pointer">
-                      {t.booking.businessPurposes[purpose] || purpose}
+                      {(isDayPass ? t.booking.dayPassPurposes[purpose] : t.booking.businessPurposes[purpose]) || purpose}
                     </Label>
                   </div>
                 ))}

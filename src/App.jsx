@@ -1,5 +1,6 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { HomePage } from '@/pages/HomePage';
@@ -18,9 +19,10 @@ import { RoomsPage } from '@/pages/RoomsPage';
 
 function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <Router>
+    <HelmetProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <Router>
           <div className="min-h-screen cat-pattern">
             <Routes>
               <Route path="/" element={<HomePage />} />
@@ -38,9 +40,10 @@ function App() {
             <WhatsAppButton />
             <Toaster />
           </div>
-        </Router>
-      </AuthProvider>
-    </LanguageProvider>
+          </Router>
+        </AuthProvider>
+      </LanguageProvider>
+    </HelmetProvider>
   );
 }
 

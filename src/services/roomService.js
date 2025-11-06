@@ -371,4 +371,35 @@ export const roomService = {
       return { success: false, error: handleSupabaseError(error) };
     }
   },
+
+  /**
+   * Update room descriptions (admin only)
+   * @param {number} roomId - Room ID
+   * @param {string} descriptionEn - English description
+   * @param {string} descriptionZh - Chinese description
+   * @returns {Promise<{success: boolean, room?: object, error?: string}>}
+   */
+  async updateRoomDescriptions(roomId, descriptionEn, descriptionZh) {
+    try {
+      console.log('📝 Updating room descriptions:', { roomId });
+
+      const { data, error} = await supabase
+        .from('rooms')
+        .update({
+          description_en: descriptionEn,
+          description_zh: descriptionZh,
+        })
+        .eq('id', roomId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Room descriptions updated successfully');
+      return { success: true, room: data };
+    } catch (error) {
+      console.error('❌ updateRoomDescriptions error:', error);
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
 };

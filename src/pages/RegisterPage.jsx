@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Helmet } from 'react-helmet';
+import { Helmet } from "react-helmet-async";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
@@ -16,25 +16,27 @@ import { PasswordStrengthIndicator } from '@/components/ui/PasswordStrengthIndic
 import {
   validateEmail,
   validatePassword,
-  validateName,
-  validateUsername,
+  validateTitle,
+  validateFirstName,
+  validateLastName,
   validatePhone,
-  getUsernameValidation,
   getValidationMessages,
 } from '@/utils/validation';
 
 export const RegisterPage = () => {
   const location = useLocation();
-  const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
+  const [title, setTitle] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [touched, setTouched] = useState({
-    name: false,
-    username: false,
+    title: false,
+    firstName: false,
+    lastName: false,
     email: false,
     phone: false,
     password: false,
@@ -51,11 +53,11 @@ export const RegisterPage = () => {
   const validationMessages = getValidationMessages(language);
 
   // Validation state
-  const nameError = touched.name && !validateName(name) ? validationMessages.nameRequired : '';
-  const usernameValidation = getUsernameValidation(username);
-  const usernameError = touched.username && !usernameValidation.isValid;
+  const titleError = touched.title && !validateTitle(title) ? validationMessages.titleRequired : '';
+  const firstNameError = touched.firstName && !validateFirstName(firstName) ? validationMessages.firstNameRequired : '';
+  const lastNameError = touched.lastName && !validateLastName(lastName) ? validationMessages.lastNameRequired : '';
   const emailError = touched.email && !validateEmail(email) ? validationMessages.emailInvalid : '';
-  const phoneError = touched.phone && phone && !validatePhone(phone) ? validationMessages.phoneInvalid : '';
+  const phoneError = touched.phone && !validatePhone(phone) ? validationMessages.phoneInvalid : '';
   const passwordValidation = validatePassword(password);
   const passwordError = touched.password && password.length > 0 && !passwordValidation.isValid;
   const confirmPasswordError = touched.confirmPassword && password !== confirmPassword
@@ -68,10 +70,11 @@ export const RegisterPage = () => {
     /[a-z]/.test(password) &&
     /\d/.test(password);
 
-  const hasErrors = !validateName(name) ||
-                    !validateUsername(username) ||
+  const hasErrors = !validateTitle(title) ||
+                    !validateFirstName(firstName) ||
+                    !validateLastName(lastName) ||
                     !validateEmail(email) ||
-                    (phone && !validatePhone(phone)) ||
+                    !validatePhone(phone) ||
                     !hasMinimumPasswordRequirements ||
                     password !== confirmPassword ||
                     password.length === 0 ||
@@ -86,8 +89,9 @@ export const RegisterPage = () => {
 
     // Mark all fields as touched
     setTouched({
-      name: true,
-      username: true,
+      title: true,
+      firstName: true,
+      lastName: true,
       email: true,
       phone: true,
       password: true,
@@ -95,19 +99,28 @@ export const RegisterPage = () => {
     });
 
     // Validate all fields
-    if (!validateName(name)) {
+    if (!validateTitle(title)) {
       toast({
         title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
-        description: validationMessages.nameRequired,
+        description: validationMessages.titleRequired,
         variant: 'destructive',
       });
       return;
     }
 
-    if (!validateUsername(username)) {
+    if (!validateFirstName(firstName)) {
       toast({
         title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
-        description: validationMessages.usernameInvalid,
+        description: validationMessages.firstNameRequired,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validateLastName(lastName)) {
+      toast({
+        title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
+        description: validationMessages.lastNameRequired,
         variant: 'destructive',
       });
       return;
@@ -117,6 +130,15 @@ export const RegisterPage = () => {
       toast({
         title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
         description: validationMessages.emailInvalid,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      toast({
+        title: language === 'zh' ? '驗證錯誤' : 'Validation Error',
+        description: validationMessages.phoneRequired,
         variant: 'destructive',
       });
       return;
@@ -147,7 +169,7 @@ export const RegisterPage = () => {
 
     try {
       console.log('🚀 Starting registration...');
-      const result = await register({ name, username, email, password, fullName: name, phone: phone.trim() });
+      const result = await register({ title, firstName, lastName, email, password, phone: phone.trim() });
       console.log('📝 Registration result:', result);
 
       if (result.success) {
@@ -230,73 +252,87 @@ export const RegisterPage = () => {
                 />
               </div>
               <h1 className="text-3xl font-bold text-amber-800 mb-2">
-                {language === 'zh' ? '創建帳戶' : 'Create Account'}
+                {t.registerPage.createAccount}
               </h1>
               <p className="text-amber-600">
-                {language === 'zh' ? '加入Ofcoz Family' : 'Join the Ofcoz Family'}
+                {t.registerPage.joinFamily}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <Label htmlFor="name" className="text-amber-800">
-                  {language === 'zh' ? '姓名' : 'Name'}
+                <Label htmlFor="title" className="text-amber-800">
+                  {t.registerPage.title_label}
                 </Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={() => handleBlur('name')}
-                  className={`border-amber-200 focus:border-amber-400 ${nameError ? 'border-red-500' : ''}`}
+                <select
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => handleBlur('title')}
+                  className={`w-full px-3 py-2 border rounded-md bg-white ${titleError ? 'border-red-500' : 'border-amber-200'} focus:outline-none focus:ring-2 focus:ring-amber-400`}
                   required
-                />
-                {nameError && (
+                >
+                  <option value="">{t.registerPage.title_placeholder}</option>
+                  <option value="Mr.">{t.registerPage.titles.mr}</option>
+                  <option value="Ms.">{t.registerPage.titles.ms}</option>
+                  <option value="Mrs.">{t.registerPage.titles.mrs}</option>
+                  <option value="Dr.">{t.registerPage.titles.dr}</option>
+                </select>
+                {titleError && (
                   <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
                     <AlertCircle className="w-3 h-3" />
-                    <span>{nameError}</span>
+                    <span>{titleError}</span>
                   </div>
                 )}
               </div>
 
               <div>
-                <Label htmlFor="username" className="text-amber-800">
-                  {language === 'zh' ? '用戶名稱' : 'Username'}
+                <Label htmlFor="lastName" className="text-amber-800">
+                  {t.registerPage.lastName}
                 </Label>
                 <Input
-                  id="username"
+                  id="lastName"
                   type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  onBlur={() => handleBlur('username')}
-                  className={`border-amber-200 focus:border-amber-400 ${usernameError ? 'border-red-500' : ''}`}
-                  placeholder={language === 'zh' ? '例如: johndoe123' : 'e.g. johndoe123'}
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  onBlur={() => handleBlur('lastName')}
+                  className={`border-amber-200 focus:border-amber-400 ${lastNameError ? 'border-red-500' : ''}`}
+                  placeholder={t.registerPage.lastName_placeholder}
                   required
                 />
-                {usernameError && (
-                  <div className="flex items-start gap-1 mt-1 text-xs text-red-600">
-                    <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                    <div className="space-y-0.5">
-                      {language === 'zh' ? '用戶名稱還需要：' : 'Username still needs:'}
-                      <ul className="list-none ml-2 space-y-0.5">
-                        {usernameValidation.errors.tooShort && (
-                          <li>• {language === 'zh' ? '至少3個字元' : 'At least 3 characters'}</li>
-                        )}
-                        {usernameValidation.errors.tooLong && (
-                          <li>• {language === 'zh' ? '不超過20個字元' : 'No more than 20 characters'}</li>
-                        )}
-                        {usernameValidation.errors.invalidChars && (
-                          <li>• {language === 'zh' ? '只能包含字母和數字' : 'Only letters and numbers allowed'}</li>
-                        )}
-                      </ul>
-                    </div>
+                {lastNameError && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{lastNameError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="firstName" className="text-amber-800">
+                  {t.registerPage.firstName}
+                </Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  onBlur={() => handleBlur('firstName')}
+                  className={`border-amber-200 focus:border-amber-400 ${firstNameError ? 'border-red-500' : ''}`}
+                  placeholder={t.registerPage.firstName_placeholder}
+                  required
+                />
+                {firstNameError && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                    <AlertCircle className="w-3 h-3" />
+                    <span>{firstNameError}</span>
                   </div>
                 )}
               </div>
 
               <div>
                 <Label htmlFor="email" className="text-amber-800">
-                  {language === 'zh' ? '電郵地址' : 'Email Address'}
+                  {t.registerPage.email}
                 </Label>
                 <Input
                   id="email"
@@ -317,7 +353,7 @@ export const RegisterPage = () => {
 
               <div>
                 <Label htmlFor="phone" className="text-amber-800">
-                  {validationMessages.phoneOptional}
+                  {t.registerPage.phone}
                 </Label>
                 <Input
                   id="phone"
@@ -326,7 +362,8 @@ export const RegisterPage = () => {
                   onChange={(e) => setPhone(e.target.value)}
                   onBlur={() => handleBlur('phone')}
                   className={`border-amber-200 focus:border-amber-400 ${phoneError ? 'border-red-500' : ''}`}
-                  placeholder={language === 'zh' ? '例如: +852 1234 5678' : 'e.g. +852 1234 5678'}
+                  placeholder={t.registerPage.phone_placeholder}
+                  required
                 />
                 {phoneError && (
                   <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
@@ -338,7 +375,7 @@ export const RegisterPage = () => {
 
               <div>
                 <Label htmlFor="password" className="text-amber-800">
-                  {language === 'zh' ? '密碼' : 'Password'}
+                  {t.registerPage.password}
                 </Label>
                 <PasswordInput
                   id="password"
@@ -383,7 +420,7 @@ export const RegisterPage = () => {
 
               <div>
                 <Label htmlFor="confirmPassword" className="text-amber-800">
-                  {language === 'zh' ? '確認密碼' : 'Confirm Password'}
+                  {t.registerPage.confirmPassword}
                 </Label>
                 <PasswordInput
                   id="confirmPassword"
@@ -407,17 +444,15 @@ export const RegisterPage = () => {
                 className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                {isLoading
-                  ? language === 'zh' ? '註冊中...' : 'Registering...'
-                  : language === 'zh' ? '註冊' : 'Register'}
+                {isLoading ? t.registerPage.registering : t.registerPage.register}
               </Button>
             </form>
 
             <div className="mt-6 text-center space-y-4">
               <p className="text-amber-700">
-                {language === 'zh' ? '已經有帳戶？' : 'Already have an account?'}{' '}
+                {t.registerPage.alreadyHaveAccount}{' '}
                 <Link to="/login" className="text-amber-800 hover:text-amber-900 font-medium">
-                  {language === 'zh' ? '立即登入' : 'Sign in now'}
+                  {t.registerPage.signInNow}
                 </Link>
               </p>
 
@@ -426,7 +461,7 @@ export const RegisterPage = () => {
                 className="inline-flex items-center text-amber-700 hover:text-amber-900 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                {language === 'zh' ? '返回首頁' : 'Back to Home'}
+                {t.registerPage.backToHome}
               </Link>
             </div>
           </Card>

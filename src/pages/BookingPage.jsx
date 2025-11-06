@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import { Helmet } from "react-helmet-async";
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { Header } from '@/components/Header';
@@ -73,7 +73,7 @@ export const BookingPage = () => {
     }
 
     let initialRentalType = 'hourly';
-    if (room.id === 9) { // Lobby Seat - always daily
+    if (room.id === 9) { // Day Pass - always daily (but user selects time)
       initialRentalType = 'daily';
     }
 
@@ -81,9 +81,13 @@ export const BookingPage = () => {
       ...prev,
       bookingType: initialBookingType,
       rentalType: initialRentalType,
+      guests: room.id === 9 ? 1 : prev.guests || 1,
       name: user?.name || '',
       email: user?.email || '',
-      phone: user?.phone || ''
+      phone: user?.phone || '',
+      // Auto-set fixed times for Day Pass (10:00 AM - 6:30 PM)
+      startTime: room.id === 9 ? '10:00' : prev.startTime || '',
+      endTime: room.id === 9 ? '18:30' : prev.endTime || ''
     }));
   }, [roomId, navigate, user, language, toast]);
 
@@ -121,14 +125,43 @@ export const BookingPage = () => {
 
   const handleConfirmBooking = async (e) => {
     e.preventDefault();
-    if (!bookingData.name || !bookingData.email || !bookingData.phone || !bookingData.date || !bookingData.startTime || !bookingData.endTime) {
+
+    // Debug logging
+    console.log('=== BOOKING VALIDATION DEBUG ===');
+    console.log('📋 Current booking data:', bookingData);
+    console.log('✅ Name:', bookingData.name, '| Has value:', !!bookingData.name);
+    console.log('✅ Email:', bookingData.email, '| Has value:', !!bookingData.email);
+    console.log('✅ Phone:', bookingData.phone, '| Has value:', !!bookingData.phone);
+    console.log('✅ Date:', bookingData.date, '| Has value:', !!bookingData.date);
+    console.log('✅ Start Time:', bookingData.startTime, '| Has value:', !!bookingData.startTime);
+    console.log('✅ End Time:', bookingData.endTime, '| Has value:', !!bookingData.endTime);
+    console.log('✅ Purpose:', bookingData.purpose, '| Has value:', !!bookingData.purpose);
+    console.log('✅ Special Requests:', bookingData.specialRequests, '| Has value:', !!bookingData.specialRequests);
+    console.log('✅ Agreed to Terms:', bookingData.agreedToTerms);
+    console.log('🏠 Selected Room:', selectedRoom?.name, '| ID:', selectedRoom?.id);
+    console.log('================================');
+
+    // Basic validation
+    if (!bookingData.name || !bookingData.email || !bookingData.phone || !bookingData.date) {
+      console.error('❌ VALIDATION FAILED: Missing required fields');
       toast({ title: t.booking.missingInfo, description: t.booking.missingDesc, variant: "destructive" });
       return;
     }
+
+    // Time validation (Day Pass has fixed times auto-set, so times should always be present)
+    if (!bookingData.startTime || !bookingData.endTime) {
+      console.error('❌ VALIDATION FAILED: Missing time selection');
+      toast({ title: t.booking.missingInfo, description: t.booking.missingDesc, variant: "destructive" });
+      return;
+    }
+
     if (bookingData.startTime >= bookingData.endTime) {
+      console.error('❌ VALIDATION FAILED: End time must be after start time');
       toast({ title: language === 'zh' ? '時間錯誤' : 'Time Error', description: language === 'zh' ? '結束時間必須晚於開始時間' : 'End time must be after start time', variant: "destructive" });
       return;
     }
+
+    console.log('✅ All validations passed, proceeding with booking...');
 
     // Check time conflict (now async)
     const hasConflict = await checkTimeConflict(selectedRoom.id, bookingData.date, bookingData.startTime, bookingData.endTime);
@@ -195,6 +228,16 @@ export const BookingPage = () => {
             return;
           }
         }
+      } else if (bookingData.bookingType === 'dp20') {
+        // DP20 booking: set cash equivalent cost for reference
+        if (selectedRoom.prices && selectedRoom.prices.cash && selectedRoom.prices.cash.daily) {
+          totalCost = selectedRoom.prices.cash.daily;
+
+          // For Lobby Seat (room 9), multiply by number of guests ($100 per person)
+          if (selectedRoom.id === 9) {
+            totalCost = totalCost * (bookingData.guests || 1);
+          }
+        }
       } else {
         // Cash booking: calculate price from room data
         if (selectedRoom.prices && selectedRoom.prices.cash) {
@@ -202,6 +245,11 @@ export const BookingPage = () => {
             totalCost = selectedRoom.prices.cash.hourly * hours;
           } else if (bookingData.rentalType === 'daily') {
             totalCost = selectedRoom.prices.cash.daily;
+
+            // For Lobby Seat (room 9), multiply by number of guests ($100 per person)
+            if (selectedRoom.id === 9) {
+              totalCost = totalCost * (bookingData.guests || 1);
+            }
           } else if (bookingData.rentalType === 'monthly') {
             totalCost = selectedRoom.prices.cash.monthly;
           }

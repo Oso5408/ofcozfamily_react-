@@ -312,8 +312,16 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         console.log('✅ Bookings reloaded after payment confirmation');
       }
 
-      // Send confirmation email (optional)
-      // sendBookingConfirmationEmail(result.booking, language);
+      // Send payment confirmed email notification
+      console.log('📧 Sending payment confirmed email to user...');
+      const normalizedBooking = normalizeBooking(result.booking || bookingToConfirmPayment);
+      const emailResult = await emailService.sendPaymentConfirmedEmail(normalizedBooking, language);
+
+      if (!emailResult.success) {
+        console.error('❌ Failed to send payment confirmed email:', emailResult.error);
+      } else {
+        console.log('✅ Payment confirmed email sent successfully');
+      }
 
       toast({
         title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
@@ -364,13 +372,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         return;
       }
 
-      // Send booking confirmation email
-      console.log('📧 Sending confirmation email to user...');
+      // Send payment confirmed email notification
+      console.log('📧 Sending payment confirmed email to user...');
       const normalizedBooking = normalizeBooking(result.booking || booking);
-      const emailResult = await emailService.sendBookingConfirmation(normalizedBooking, language);
+      const emailResult = await emailService.sendPaymentConfirmedEmail(normalizedBooking, language);
 
       if (!emailResult.success) {
-        console.error('❌ Failed to send confirmation email:', emailResult.error);
+        console.error('❌ Failed to send payment confirmed email:', emailResult.error);
         // Still show success for booking confirmation, but warn about email
         toast({
           title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
@@ -380,7 +388,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
           variant: 'warning',
         });
       } else {
-        console.log('✅ Confirmation email sent successfully');
+        console.log('✅ Payment confirmed email sent successfully');
         toast({
           title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
           description: language === 'zh'

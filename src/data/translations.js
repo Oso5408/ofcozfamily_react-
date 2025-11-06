@@ -22,6 +22,7 @@ export const translations = {
       description: 'Login to your Ofcoz Family account to manage your bookings and view your token balance.'
     },
     registerPage: {
+      ...en.registerPage,
       title: 'Register',
       description: 'Create an account with Ofcoz Family to start booking our cat-friendly workspaces.'
     },
@@ -70,6 +71,7 @@ export const translations = {
       description: '登入您的Ofcoz Family帳戶以管理您的預約並查看您的代幣餘額。'
     },
     registerPage: {
+      ...zh.registerPage,
       title: '註冊',
       description: '創建一個Ofcoz Family帳戶，開始預約我們的貓咪友好工作空間。'
     },

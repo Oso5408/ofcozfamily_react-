@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { storageService, bookingService } from '@/services';
+import { storageService, bookingService, emailService } from '@/services';
 import { Upload, FileText, X, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
@@ -96,6 +96,19 @@ export const ReceiptUploadModal = ({ isOpen, onClose, booking, onUploadSuccess }
 
       if (!updateResult.success) {
         throw new Error(updateResult.error);
+      }
+
+      // Send receipt received email notification
+      console.log('📧 Sending receipt received email to user...');
+      const emailResult = await emailService.sendReceiptReceivedEmail(
+        updateResult.booking,
+        language
+      );
+
+      if (!emailResult.success) {
+        console.error('❌ Failed to send receipt received email:', emailResult.error);
+      } else {
+        console.log('✅ Receipt received email sent successfully');
       }
 
       toast({

@@ -101,6 +101,11 @@ export const booking = {
       "直傳靈氣": "直傳靈氣",
       "其他": "其他",
     },
+    dayPassPurposes: {
+      "自修": "自修",
+      "工作": "工作",
+      "其他": "其他",
+    },
     otherPurposePlaceholder: "請註明其他用途...",
     status: {
       pending: "待付款",

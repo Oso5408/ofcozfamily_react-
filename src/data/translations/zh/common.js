@@ -41,7 +41,7 @@ export const common = {
     guests: "位客人",
     upTo: "最多",
     features: "設施：",
-    descriptionTitle: "房間介紹：",
+    descriptionTitle: "空間介紹：",
     bookButton: "預約此房間 🐾",
     night: "/晚",
     reviews: "則評價",
@@ -55,7 +55,8 @@ export const common = {
       "Room G": "G房",
       "Room H": "H房",
       "One Day Pass": "One Day Pass",
-      "Lobby Seat": "大廳座位"
+      "Lobby Seat": "大廳座位",
+      "Day Pass": "Day Pass 一日通行證"
     },
     roomDescriptions: {
       "Room A": `*工作室約60尺，可供1-6人使用。
@@ -100,6 +101,20 @@ export const common = {
 *單次使用：每人 $100。
 *每時段最多4人。
 *非常適合工作、閱讀或在共享空間中與我們的貓咪享受時光。
+*請體諒其他客人並保持安靜環境。`,
+      "DayPassDescription": `*於我們的大廳享受舒適的座位，提供WiFi及貓咪友善環境。
+*開放時間：上午10:00至下午6:30 (10:00-18:30)。
+*Day Pass套票 (DP20)：20次套票 $1000，購買日起90日有效期。
+*單次使用：每人 $100。
+*僅限1人使用。
+*非常適合自修、工作或在共享空間中與我們的貓咪享受時光。
+*請體諒其他客人並保持安靜環境。`,
+      "Day Pass": `*於我們的大廳享受舒適的座位，提供WiFi及貓咪友善環境。
+*開放時間：上午10:00至下午6:30 (10:00-18:30)。
+*Day Pass套票 (DP20)：20次套票 $1000，購買日起90日有效期。
+*單次使用：每人 $100。
+*僅限1人使用。
+*非常適合自修、工作或在共享空間中與我們的貓咪享受時光。
 *請體諒其他客人並保持安靜環境。`
     },
     roomFeatures: {

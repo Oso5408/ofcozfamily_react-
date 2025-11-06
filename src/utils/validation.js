@@ -74,17 +74,16 @@ export const validateName = (name) => {
 };
 
 /**
- * Validate phone number (optional field)
+ * Validate phone number (required field)
  * Allows common phone formats with digits, spaces, dashes, parentheses, and + sign
- * Returns true if empty (optional) or if valid format
  */
 export const validatePhone = (phone) => {
-  // Phone is optional - empty is valid
+  // Phone is now required - empty is invalid
   if (!phone || phone.trim().length === 0) {
-    return true;
+    return false;
   }
 
-  // If phone is provided, check format
+  // Check format
   // Allows: digits, spaces, dashes, parentheses, and + sign
   // Examples: +852 1234 5678, (123) 456-7890, 123-456-7890
   const phoneRegex = /^[\d\s\-\(\)\+]+$/;
@@ -95,35 +94,25 @@ export const validatePhone = (phone) => {
 };
 
 /**
- * Validate username
- * Requirements:
- * - Minimum 3 characters
- * - Maximum 20 characters
- * - Alphanumeric only (a-z, A-Z, 0-9)
- * - No spaces or special characters
+ * Validate title/salutation
  */
-export const validateUsername = (username) => {
-  const usernameRegex = /^[a-zA-Z0-9]{3,20}$/;
-  return usernameRegex.test(username);
+export const validateTitle = (title) => {
+  const validTitles = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', '先生', '女士', '太太', '博士'];
+  return title && validTitles.includes(title);
 };
 
 /**
- * Get username validation details
+ * Validate first name
  */
-export const getUsernameValidation = (username) => {
-  const minLength = 3;
-  const maxLength = 20;
-  const isAlphanumeric = /^[a-zA-Z0-9]*$/.test(username);
-  const hasValidLength = username.length >= minLength && username.length <= maxLength;
+export const validateFirstName = (firstName) => {
+  return firstName && firstName.trim().length > 0 && firstName.trim().length <= 50;
+};
 
-  return {
-    isValid: isAlphanumeric && hasValidLength,
-    errors: {
-      tooShort: username.length > 0 && username.length < minLength,
-      tooLong: username.length > maxLength,
-      invalidChars: !isAlphanumeric,
-    },
-  };
+/**
+ * Validate last name
+ */
+export const validateLastName = (lastName) => {
+  return lastName && lastName.trim().length > 0 && lastName.trim().length <= 50;
 };
 
 /**
@@ -136,11 +125,11 @@ export const getValidationMessages = (language = 'en') => {
       emailRequired: 'Email is required',
       nameRequired: 'Name is required',
       nameTooLong: 'Name must be less than 100 characters',
-      usernameRequired: 'Username is required',
-      usernameTooShort: 'Username must be at least 3 characters',
-      usernameTooLong: 'Username must be no more than 20 characters',
-      usernameInvalidChars: 'Username can only contain letters and numbers',
-      usernameInvalid: 'Username must be 3-20 characters, letters and numbers only',
+      titleRequired: 'Title is required',
+      firstNameRequired: 'First name is required',
+      firstNameTooLong: 'First name must be less than 50 characters',
+      lastNameRequired: 'Last name is required',
+      lastNameTooLong: 'Last name must be less than 50 characters',
       passwordRequired: 'Password is required',
       passwordMinLength: 'Password must be at least 6 characters',
       passwordUpperCase: 'Password must contain at least one uppercase letter',
@@ -150,18 +139,18 @@ export const getValidationMessages = (language = 'en') => {
       passwordMismatch: 'Passwords do not match',
       confirmPasswordRequired: 'Please confirm your password',
       phoneInvalid: 'Please enter a valid phone number',
-      phoneOptional: 'Phone number (optional)',
+      phoneRequired: 'Phone number is required',
     },
     zh: {
       emailInvalid: '請輸入有效的電郵地址',
       emailRequired: '電郵地址為必填',
       nameRequired: '姓名為必填',
       nameTooLong: '姓名不得超過100個字元',
-      usernameRequired: '用戶名稱為必填',
-      usernameTooShort: '用戶名稱至少需要3個字元',
-      usernameTooLong: '用戶名稱不得超過20個字元',
-      usernameInvalidChars: '用戶名稱只能包含字母和數字',
-      usernameInvalid: '用戶名稱必須為3-20個字元，只能包含字母和數字',
+      titleRequired: '稱謂為必填',
+      firstNameRequired: '名稱為必填',
+      firstNameTooLong: '名稱不得超過50個字元',
+      lastNameRequired: '姓氏為必填',
+      lastNameTooLong: '姓氏不得超過50個字元',
       passwordRequired: '密碼為必填',
       passwordMinLength: '密碼至少需要6個字元',
       passwordUpperCase: '密碼必須包含至少一個大寫字母',
@@ -171,7 +160,7 @@ export const getValidationMessages = (language = 'en') => {
       passwordMismatch: '密碼不匹配',
       confirmPasswordRequired: '請確認您的密碼',
       phoneInvalid: '請輸入有效的電話號碼',
-      phoneOptional: '電話號碼（選填）',
+      phoneRequired: '電話號碼為必填',
     },
   };
 };
