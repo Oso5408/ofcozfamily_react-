@@ -14,7 +14,7 @@ export const roomsData = [
   {
     id: 2,
     name: 'Room C',
-    capacity: 4,
+    capacity: 10,
     features: ['Spacious living area', 'Cat climbing tree', 'Premium bedding', 'TV'],
     image: 'Luxurious suite with elegant cat-themed interior design and a TV',
     size: '約60-90尺',
@@ -26,7 +26,7 @@ export const roomsData = [
   {
     id: 3,
     name: 'Room D',
-    capacity: 7,
+    capacity: 6,
     features: ['Garden view', 'Cat balcony', 'Meditation corner'],
     image: 'Peaceful room for seven with garden view and cat-friendly amenities',
     size: '約60尺',
@@ -38,7 +38,7 @@ export const roomsData = [
   {
     id: 4,
     name: 'Room E',
-    capacity: 6,
+    capacity: 8,
     features: ['Themed decor', 'Interactive cat toys', 'Cozy reading nook', 'TV'],
     image: 'Whimsical room for six with playful cat-themed decorations and a TV',
     size: '約60尺',
@@ -50,7 +50,7 @@ export const roomsData = [
   {
     id: 5,
     name: 'Room F',
-    capacity: 4,
+    capacity: 6,
     features: ['Premium bedding', 'Cat climbing tree', 'Garden view', 'TV'],
     image: 'Comfortable room with modern amenities and a TV',
     size: '約60-80尺',
@@ -62,7 +62,7 @@ export const roomsData = [
   {
     id: 6,
     name: 'Room G',
-    capacity: 4,
+    capacity: 6,
     features: ['Cat balcony', 'Meditation corner', 'Interactive cat toys', 'TV'],
     image: 'Serene room with peaceful atmosphere and a TV',
     size: '約60-80尺',
