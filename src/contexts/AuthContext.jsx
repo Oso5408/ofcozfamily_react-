@@ -230,10 +230,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const assignBRPackage = async (userId, packageType, adminId, reason = '') => {
+  const assignBRPackage = async (userId, packageType, adminId, amount, expiry = null, reason = '') => {
     try {
-      console.log('🎫 Assigning BR package:', { userId, packageType, adminId, reason });
-      const brAmount = packageType === 'BR15' ? 15 : 30;
+      console.log('🎫 Assigning BR package:', { userId, packageType, adminId, amount, expiry, reason });
+      const brAmount = amount; // Use the passed amount instead of hardcoded value
       const balanceField = packageType === 'BR15' ? 'br15_balance' : 'br30_balance';
 
       // Get current user data (including email and name for email notification)
@@ -295,7 +295,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Record in package history
+      // Record in package history with the provided expiry date
       console.log('📝 Recording in package history...');
       const { error: historyError } = await supabase
         .from('package_history')
@@ -304,7 +304,8 @@ export const AuthProvider = ({ children }) => {
           package_type: packageType,
           br_amount: brAmount,
           assigned_by: adminId,
-          reason: reason || null
+          reason: reason || null,
+          expiry_date: expiry || null // Use the passed expiry date or null
         });
 
       if (historyError) {
@@ -429,9 +430,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const assignDP20Package = async (userId, adminId, reason = '') => {
+  const assignDP20Package = async (userId, adminId, amount, expiry = null, reason = '') => {
     try {
-      console.log('🎫 Assigning DP20 package:', { userId, adminId, reason });
+      console.log('🎫 Assigning DP20 package:', { userId, adminId, amount, expiry, reason });
 
       // Get current user data (including email and name for email notification)
       console.log('📖 Fetching current balance...');
@@ -448,8 +449,10 @@ export const AuthProvider = ({ children }) => {
 
       console.log('✅ Current data:', userData);
       const currentBalance = userData.dp20_balance || 0;
-      const newBalance = currentBalance + 20;
-      const newExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); // 90 days from now
+      const dpAmount = amount; // Use the passed amount instead of hardcoded 20
+      const newBalance = currentBalance + dpAmount;
+      // Use provided expiry or calculate 90 days from now
+      const newExpiry = expiry || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
       console.log('💰 Balance update:', { currentBalance, newBalance, newExpiry });
 
       // Update user balance and expiry
@@ -502,9 +505,10 @@ export const AuthProvider = ({ children }) => {
         .insert({
           user_id: userId,
           package_type: 'DP20',
-          br_amount: 20,
+          br_amount: dpAmount, // Use the actual amount added
           assigned_by: adminId,
-          reason: reason || null
+          reason: reason || null,
+          expiry_date: newExpiry // Use the calculated or provided expiry
         });
 
       if (historyError) {
@@ -526,7 +530,7 @@ export const AuthProvider = ({ children }) => {
           userData.email,
           userData.full_name,
           'DP20',
-          20,
+          dpAmount, // Use the actual amount added
           newBalance,
           reason || 'Package purchase',
           newExpiry, // DP20 packages have expiry

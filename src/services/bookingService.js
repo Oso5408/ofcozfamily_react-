@@ -424,7 +424,7 @@ export const bookingService = {
         .from('bookings')
         .update({
           payment_status: 'completed',
-          status: 'to_be_confirmed', // Changed from 'confirmed' - payment received but booking not yet confirmed
+          status: 'confirmed', // Admin manual confirmation goes directly to confirmed
           payment_confirmed_at: new Date().toISOString(),
           payment_confirmed_by: adminUserId,
           admin_notes: adminNotes,

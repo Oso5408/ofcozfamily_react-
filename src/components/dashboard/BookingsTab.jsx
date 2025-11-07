@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Calendar, MapPin, Users, Clock, X, Edit, Hash, Upload, FileCheck, CalendarPlus } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, X, Edit, Hash, Upload, FileCheck, CalendarPlus, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { BookingModal } from '@/components/BookingModal';
 import { ReceiptUploadModal } from '@/components/ReceiptUploadModal';
 import { CancellationConfirmModal } from '@/components/CancellationConfirmModal';
+import { PaymentInstructionsModal } from '@/components/PaymentInstructionsModal';
 import { openGoogleCalendar } from '@/lib/calendarUtils';
 
 export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => {
@@ -23,6 +24,8 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [cancellingBooking, setCancellingBooking] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [viewingPayment, setViewingPayment] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const handleCancelClick = (booking) => {
     setCancellingBooking(booking);
@@ -63,6 +66,11 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
   const handleUploadReceiptClick = (booking) => {
     setUploadingReceipt(booking);
     setShowReceiptModal(true);
+  };
+
+  const handleViewPaymentClick = (booking) => {
+    setViewingPayment(booking);
+    setShowPaymentModal(true);
   };
 
   const handleAddToCalendar = (booking) => {
@@ -170,15 +178,27 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                       {t.booking.receipt.receiptUploaded}
                     </span>
                   )}
-                  {booking.status === 'pending' && !booking.receipt_url && (
-                    <Button
-                      onClick={() => handleUploadReceiptClick(booking)}
-                      size="sm"
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                    >
-                      <Upload className="w-4 h-4 mr-1" />
-                      {t.booking.receipt.upload}
-                    </Button>
+                  {booking.status === 'pending' && booking.bookingType === 'cash' && (
+                    <>
+                      <Button
+                        onClick={() => handleViewPaymentClick(booking)}
+                        size="sm"
+                        className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+                      >
+                        <CreditCard className="w-4 h-4 mr-1" />
+                        {language === 'zh' ? '查看付款方式' : 'View Payment'}
+                      </Button>
+                      {!booking.receipt_url && (
+                        <Button
+                          onClick={() => handleUploadReceiptClick(booking)}
+                          size="sm"
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                        >
+                          <Upload className="w-4 h-4 mr-1" />
+                          {t.booking.receipt.upload}
+                        </Button>
+                      )}
+                    </>
                   )}
                   {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed' || booking.status === 'pending') && canModify(booking) && (
                     <>
@@ -296,6 +316,17 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
           }}
           booking={cancellingBooking}
           onCancelSuccess={handleCancelSuccess}
+        />
+      )}
+
+      {showPaymentModal && viewingPayment && (
+        <PaymentInstructionsModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setViewingPayment(null);
+          }}
+          booking={viewingPayment}
         />
       )}
     </div>

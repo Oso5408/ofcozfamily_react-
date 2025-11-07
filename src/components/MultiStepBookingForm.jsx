@@ -42,11 +42,20 @@ export const MultiStepBookingForm = ({
   // Check if using DP20 payment (no receipt upload needed)
   const isDP20 = bookingData.bookingType === 'dp20';
 
-  // Dynamic steps: DP20 has only 2 steps (skip receipt upload)
+  // Check if using cash payment
+  const isCash = bookingData.bookingType === 'cash';
+
+  // Dynamic steps:
+  // - DP20: 2 steps (Booking Details, Confirm Booking)
+  // - Cash: 1 step (Booking Details only - payment & receipt moved to dashboard)
   const steps = isDP20
     ? [
         { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
         { label: language === 'zh' ? '確認預約' : 'Confirm Booking' },
+      ]
+    : isCash
+    ? [
+        { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
       ]
     : [
         { label: language === 'zh' ? '預約詳情' : 'Booking Details' },
@@ -158,9 +167,13 @@ export const MultiStepBookingForm = ({
     if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
       return false;
     }
-    if (!bookingData.specialRequests || bookingData.specialRequests.trim() === '') {
+
+    // Validate equipment selection (required - at least one equipment must be selected)
+    if (!bookingData.equipment || bookingData.equipment.length === 0) {
       return false;
     }
+
+    // specialRequests is now optional, no validation needed
     return true;
   };
 
@@ -431,14 +444,67 @@ export const MultiStepBookingForm = ({
         )}
       </div>
 
+      {/* Equipment Selection - Multiple */}
+      <div>
+        <Label className="text-amber-800">
+          {t.booking.equipment}
+        </Label>
+        <p className="text-sm text-gray-500 mt-1 mb-3">{t.booking.selectEquipment}</p>
+        <div className="space-y-3">
+          {Object.entries(t.booking.equipmentOptions).map(([key, label]) => {
+            const equipmentItem = bookingData.equipment?.find(item => item.type === key);
+            const isChecked = !!equipmentItem;
+
+            return (
+              <div key={key} className="flex items-center space-x-3">
+                <Checkbox
+                  id={`equipment-${key}`}
+                  checked={isChecked}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      // Add equipment with default quantity 1
+                      const newEquipment = [...(bookingData.equipment || []), { type: key, quantity: 1 }];
+                      setBookingData({ ...bookingData, equipment: newEquipment });
+                    } else {
+                      // Remove equipment
+                      const newEquipment = (bookingData.equipment || []).filter(item => item.type !== key);
+                      setBookingData({ ...bookingData, equipment: newEquipment });
+                    }
+                  }}
+                />
+                <Label htmlFor={`equipment-${key}`} className="text-amber-700 cursor-pointer flex-1">
+                  {label}
+                </Label>
+                {isChecked && (
+                  <Input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={equipmentItem?.quantity || 1}
+                    onChange={(e) => {
+                      const newQuantity = parseInt(e.target.value) || 1;
+                      const newEquipment = (bookingData.equipment || []).map(item =>
+                        item.type === key ? { ...item, quantity: newQuantity } : item
+                      );
+                      setBookingData({ ...bookingData, equipment: newEquipment });
+                    }}
+                    placeholder={t.booking.equipmentQuantity}
+                    className="w-24 border-amber-200 focus:border-amber-400"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <Label htmlFor="requests" className="text-amber-800">
-          {t.booking.specialRequests} <span className="text-red-500">*</span>
+          {t.booking.specialRequests}
         </Label>
         <Textarea
           id="requests"
-          required
-          value={bookingData.specialRequests}
+          value={bookingData.specialRequests || ''}
           onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
           placeholder={t.booking.specialRequestsPlaceholderUpdated}
           className="border-amber-200 focus:border-amber-400 placeholder-gray-400 mt-2"
@@ -451,6 +517,17 @@ export const MultiStepBookingForm = ({
                 <div className="flex items-center justify-between">
                   <span className="text-blue-700 font-bold">{t.booking.totalPrice.replace('{total}', totalPrice)}</span>
                 </div>
+              </div>
+            )}
+
+            {/* New workflow reminder for cash payments */}
+            {bookingData.bookingType === 'cash' && (
+              <div className="p-4 bg-amber-50 rounded-lg border-2 border-amber-200">
+                <p className="text-sm text-amber-800 font-medium">
+                  {language === 'zh'
+                    ? '💡 提交預約後，請前往「我的預約」查看付款方式及上傳收據。'
+                    : '💡 After submitting, go to "My Bookings" to view payment instructions and upload receipt.'}
+                </p>
               </div>
             )}
           </div>
@@ -688,8 +765,8 @@ export const MultiStepBookingForm = ({
 
       <div className="min-h-[500px]">
         {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && (isDP20 ? renderStep2DP20() : renderStep2())}
-        {currentStep === 3 && !isDP20 && renderStep3()}
+        {currentStep === 2 && !isCash && (isDP20 ? renderStep2DP20() : renderStep2())}
+        {currentStep === 3 && !isDP20 && !isCash && renderStep3()}
       </div>
 
       <div className="flex justify-between pt-6 border-t border-amber-200">
@@ -730,16 +807,20 @@ export const MultiStepBookingForm = ({
           <Button
             type="button"
             onClick={(e) => {
-              // For cash: attach receipt image; for DP20: no receipt needed
-              if (!isDP20) {
+              // For cash (new workflow): no receipt needed at booking time
+              // For DP20: no receipt needed
+              // For old workflow (non-cash, non-DP20): attach receipt image
+              if (!isDP20 && !isCash) {
                 setBookingData(prev => ({ ...prev, receiptImage: receiptImage }));
               }
               onSubmit(e);
             }}
-            disabled={!isDP20 && !receiptImage}
+            disabled={!isDP20 && !isCash && !receiptImage}
             className="ml-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
           >
-            {language === 'zh' ? '確認預約' : 'Confirm Booking'}
+            {isCash
+              ? (language === 'zh' ? '提交預約' : 'Submit Booking')
+              : (language === 'zh' ? '確認預約' : 'Confirm Booking')}
           </Button>
         )}
       </div>

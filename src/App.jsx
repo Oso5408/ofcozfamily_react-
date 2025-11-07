@@ -8,6 +8,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminPage } from '@/pages/AdminPage';
+import { UserDetailPage } from '@/pages/UserDetailPage';
 import { PricingPage } from '@/pages/PricingPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -35,6 +36,7 @@ function App() {
               <Route path="/auth/confirm" element={<EmailConfirmPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/users/:userId" element={<UserDetailPage />} />
               <Route path="/booking/:roomId" element={<BookingPage />} />
             </Routes>
             <WhatsAppButton />

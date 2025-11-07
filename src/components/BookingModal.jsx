@@ -808,21 +808,74 @@ export const BookingModal = ({
                 </div>
               )}
             </div>
-            
+
+            {/* Equipment Selection - Multiple */}
+            <div>
+              <Label className="text-amber-800">
+                {t.booking.equipment}
+              </Label>
+              <p className="text-sm text-gray-500 mt-1 mb-3">{t.booking.selectEquipment}</p>
+              <div className="space-y-3">
+                {Object.entries(t.booking.equipmentOptions).map(([key, label]) => {
+                  const equipmentItem = bookingData.equipment?.find(item => item.type === key);
+                  const isChecked = !!equipmentItem;
+
+                  return (
+                    <div key={key} className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`equipment-${key}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            // Add equipment with default quantity 1
+                            const newEquipment = [...(bookingData.equipment || []), { type: key, quantity: 1 }];
+                            setBookingData({ ...bookingData, equipment: newEquipment });
+                          } else {
+                            // Remove equipment
+                            const newEquipment = (bookingData.equipment || []).filter(item => item.type !== key);
+                            setBookingData({ ...bookingData, equipment: newEquipment });
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`equipment-${key}`} className="text-amber-700 cursor-pointer flex-1">
+                        {label}
+                      </Label>
+                      {isChecked && (
+                        <Input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={equipmentItem?.quantity || 1}
+                          onChange={(e) => {
+                            const newQuantity = parseInt(e.target.value) || 1;
+                            const newEquipment = (bookingData.equipment || []).map(item =>
+                              item.type === key ? { ...item, quantity: newQuantity } : item
+                            );
+                            setBookingData({ ...bookingData, equipment: newEquipment });
+                          }}
+                          placeholder={t.booking.equipmentQuantity}
+                          className="w-24 border-amber-200 focus:border-amber-400"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="requests" className="text-amber-800">
-                {t.booking.specialRequests} <span className="text-red-500">*</span>
+                {t.booking.specialRequests}
               </Label>
               <Textarea
                 id="requests"
-                required
-                value={bookingData.specialRequests}
+                value={bookingData.specialRequests || ''}
                 onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
                 placeholder={t.booking.specialRequestsPlaceholderUpdated}
                 className="border-amber-200 focus:border-amber-400 placeholder-gray-400 mt-2"
               />
             </div>
-            
+
             <div className="flex items-start space-x-2">
               <Checkbox id="terms" checked={bookingData.agreedToTerms} onCheckedChange={(checked) => setBookingData({ ...bookingData, agreedToTerms: checked })} />
               <div className="grid gap-1.5 leading-none">

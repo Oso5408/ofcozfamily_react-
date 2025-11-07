@@ -356,6 +356,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     if (!booking || !currentUser) return;
 
     try {
+      // Admin confirmation always goes directly to 'confirmed'
       const result = await bookingService.updateBooking(booking.id, {
         status: 'confirmed',
         payment_status: 'completed',
@@ -372,25 +373,24 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         return;
       }
 
-      // Send payment confirmed email notification
-      console.log('📧 Sending payment confirmed email to user...');
+      // Send confirmation email notification
+      console.log('📧 Sending booking confirmation email to user...');
       const normalizedBooking = normalizeBooking(result.booking || booking);
       const emailResult = await emailService.sendPaymentConfirmedEmail(normalizedBooking, language);
 
       if (!emailResult.success) {
-        console.error('❌ Failed to send payment confirmed email:', emailResult.error);
-        // Still show success for booking confirmation, but warn about email
+        console.error('❌ Failed to send confirmation email:', emailResult.error);
         toast({
-          title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
+          title: language === 'zh' ? '預約已確認' : 'Booking Confirmed',
           description: language === 'zh'
             ? '預約已確認，但電郵發送失敗。請手動通知客戶。'
             : 'Booking confirmed, but email failed to send. Please notify customer manually.',
           variant: 'warning',
         });
       } else {
-        console.log('✅ Payment confirmed email sent successfully');
+        console.log('✅ Confirmation email sent successfully');
         toast({
-          title: language === 'zh' ? '付款已確認' : 'Payment Confirmed',
+          title: language === 'zh' ? '預約已確認' : 'Booking Confirmed',
           description: language === 'zh'
             ? '預約已確認，確認電郵已發送給客戶。'
             : 'Booking confirmed. Confirmation email has been sent to customer.',

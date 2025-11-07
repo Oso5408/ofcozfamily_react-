@@ -33,6 +33,7 @@ export const BookingPage = () => {
     guests: 1,
     purpose: [],
     otherPurpose: '',
+    equipment: [], // Array of { type: string, quantity: number }
     specialRequests: '',
     agreedToTerms: false,
     bookingType: 'token',
@@ -278,6 +279,7 @@ export const BookingPage = () => {
         phone: bookingData.phone,
         guests: bookingData.guests,
         purpose: purposeText,
+        equipment: bookingData.equipment, // Array of { type, quantity }
         specialRequests: bookingData.specialRequests,
         rentalType: bookingData.rentalType,
         wantsProjector: bookingData.wantsProjector,
