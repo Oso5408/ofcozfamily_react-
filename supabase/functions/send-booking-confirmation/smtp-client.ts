@@ -13,6 +13,13 @@ export interface EmailOptions {
   }
 }
 
+// Helper function to encode string to base64
+function encodeBase64(str: string): string {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  return btoa(String.fromCharCode(...data));
+}
+
 export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; message?: string; error?: string }> {
   // Get SMTP configuration from environment variables
   const SMTP_HOST = Deno.env.get('SMTP_HOST')
@@ -53,17 +60,24 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
 
     console.log('📨 Connecting to SMTP server...')
 
-    // Send email
+    // Encode HTML content as base64 for proper Chinese character rendering
+    const base64Html = encodeBase64(options.html);
+
+    // Send email with base64-encoded HTML content
     await client.send({
       from: options.from?.email || SMTP_FROM_EMAIL,
       to: options.to,
       subject: options.subject,
-      content: 'auto',
-      html: options.html,
-      // Optional: Add reply-to header
       headers: {
         'Reply-To': 'ofcozfamily@gmail.com',
       },
+      mimeContent: [
+        {
+          contentType: 'text/html; charset=UTF-8',
+          content: base64Html,
+          transferEncoding: 'base64',
+        }
+      ],
     });
 
     await client.close();

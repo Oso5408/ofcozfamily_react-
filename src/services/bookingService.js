@@ -512,11 +512,56 @@ export const bookingService = {
           status: 'to_be_confirmed'
         })
         .eq('id', bookingId)
-        .select()
+        .select(`
+          *,
+          users!bookings_user_id_fkey (
+            email,
+            full_name,
+            phone
+          ),
+          rooms (
+            name
+          )
+        `)
         .single();
 
       if (error) throw error;
-      return { success: true, booking: data };
+
+      // Format date and time from timestamps
+      const startDate = new Date(data.start_time);
+      const endDate = new Date(data.end_time);
+
+      const formattedDate = startDate.toLocaleDateString('zh-HK', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+
+      const formattedStartTime = startDate.toLocaleTimeString('zh-HK', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      const formattedEndTime = endDate.toLocaleTimeString('zh-HK', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      // Flatten the user data for easier access
+      const booking = {
+        ...data,
+        email: data.users?.email,
+        name: data.users?.full_name,
+        phone: data.users?.phone,
+        room: data.rooms,
+        date: formattedDate,
+        startTime: formattedStartTime,
+        endTime: formattedEndTime
+      };
+
+      return { success: true, booking };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
     }

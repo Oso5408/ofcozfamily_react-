@@ -20,7 +20,7 @@ export const booking = {
     guest: "guest",
     purpose: "Business Nature",
     purposePlaceholder: "e.g., Meeting, Workshop, Study...",
-    specialRequests: "Special Requests",
+    specialRequests: "Remarks",
     specialRequestsPlaceholder: "We'll do our best to accommodate your special requests, e.g., number of tables/chairs needed.",
     specialRequestsPlaceholderUpdated: "Table and chairs can be provided if needed (please specify quantity, we will try to accommodate). An additional fee of $20 is required for projector and TV usage.",
     confirm: "Confirm Booking 🐾",

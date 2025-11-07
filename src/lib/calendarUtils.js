@@ -85,7 +85,7 @@ export const generateGoogleCalendarUrl = (booking, language, translations) => {
     descriptionLines.push(`💼 業務性質：${purposeText}`);
 
     if (booking.specialRequests) {
-      descriptionLines.push(`📝 特殊要求：${booking.specialRequests}`);
+      descriptionLines.push(`📝 備註：${booking.specialRequests}`);
     }
 
     descriptionLines.push(``);

@@ -20,7 +20,7 @@ export const booking = {
     guest: "位客人",
     purpose: "業務性質",
     purposePlaceholder: "例如：會議、工作坊、溫習...",
-    specialRequests: "特殊要求",
+    specialRequests: "備註",
     specialRequestsPlaceholderUpdated: "如有需要可提供枱椅（需列明數量，將盡量配合），如需使用投影器和電視，需额外付款$20",
     confirm: "確認預約 🐾",
     agreeTerms: "我同意以上條款及細則",

@@ -22,8 +22,6 @@ export const MultiStepBookingForm = ({
   businessPurposes,
   handlePurposeChange,
   showOtherPurposeInput,
-  noSpecialRequests,
-  setNoSpecialRequests,
   purposeError,
   totalPrice,
   user,
@@ -160,7 +158,7 @@ export const MultiStepBookingForm = ({
     if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
       return false;
     }
-    if (!noSpecialRequests && !bookingData.specialRequests) {
+    if (!bookingData.specialRequests || bookingData.specialRequests.trim() === '') {
       return false;
     }
     return true;
@@ -437,33 +435,14 @@ export const MultiStepBookingForm = ({
         <Label htmlFor="requests" className="text-amber-800">
           {t.booking.specialRequests} <span className="text-red-500">*</span>
         </Label>
-        <div className="flex items-center space-x-2 mb-2">
-          <Checkbox
-            id="no-special-requests"
-            checked={noSpecialRequests}
-            onCheckedChange={(checked) => {
-              setNoSpecialRequests(checked);
-              if (checked) {
-                setBookingData({ ...bookingData, specialRequests: '不需要' });
-              } else {
-                setBookingData({ ...bookingData, specialRequests: '' });
-              }
-            }}
-          />
-          <Label htmlFor="no-special-requests" className="text-sm font-medium text-amber-700 cursor-pointer">
-            {language === 'zh' ? '不需要' : 'Not needed'}
-          </Label>
-        </div>
-        {!noSpecialRequests && (
-          <Textarea
-            id="requests"
-            required
-            value={bookingData.specialRequests}
-            onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
-            placeholder={t.booking.specialRequestsPlaceholderUpdated}
-            className="border-amber-200 focus:border-amber-400 placeholder-gray-400"
-          />
-        )}
+        <Textarea
+          id="requests"
+          required
+          value={bookingData.specialRequests}
+          onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
+          placeholder={t.booking.specialRequestsPlaceholderUpdated}
+          className="border-amber-200 focus:border-amber-400 placeholder-gray-400 mt-2"
+        />
       </div>
 
             {/* Only show total price for cash payments, not for DP20 */}

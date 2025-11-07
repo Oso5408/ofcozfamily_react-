@@ -43,6 +43,7 @@ export const common = {
     features: "Features:",
     descriptionTitle: "Space Introduction:",
     bookButton: "Book This Room 🐾",
+    bookButtonDayPass: "Book This Lobby 🐾",
     night: "/night",
     reviews: "reviews",
     roomNames: {

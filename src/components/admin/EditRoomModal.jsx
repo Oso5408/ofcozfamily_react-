@@ -344,24 +344,36 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
         const updateResult = await roomService.updateRoomImages(room.id, uploadedImages);
 
         if (!updateResult.success) {
-          throw new Error(updateResult.error);
-        }
+          // If images column doesn't exist, just show warning but continue
+          if (updateResult.error.includes('images') || updateResult.error.includes('PGRST204')) {
+            console.warn('⚠️ Images column not found in database. Please run the migration: supabase/migrations/add-room-images-array.sql');
+            toast({
+              title: language === 'zh' ? '⚠️ 部分更新' : '⚠️ Partial Update',
+              description: language === 'zh'
+                ? '描述已保存，但圖片列不存在。請運行數據庫遷移。'
+                : 'Descriptions saved, but images column not found. Please run database migration.',
+              variant: 'default',
+            });
+          } else {
+            throw new Error(updateResult.error);
+          }
+        } else {
+          console.log('✅ Room updated successfully');
 
-        console.log('✅ Room updated successfully');
+          toast({
+            title: language === 'zh' ? '✅ 房間已更新' : '✅ Room Updated',
+            description: language === 'zh'
+              ? newImages.length > 0
+                ? '房間描述和圖片已成功更新'
+                : '房間描述和圖片設定已更新'
+              : newImages.length > 0
+                ? 'Room descriptions and images updated successfully'
+                : 'Room descriptions and image settings updated',
+          });
 
-        toast({
-          title: language === 'zh' ? '✅ 房間已更新' : '✅ Room Updated',
-          description: language === 'zh'
-            ? newImages.length > 0
-              ? '房間描述和圖片已成功更新'
-              : '房間描述和圖片設定已更新'
-            : newImages.length > 0
-              ? 'Room descriptions and images updated successfully'
-              : 'Room descriptions and image settings updated',
-        });
-
-        if (onSuccess) {
-          onSuccess(updateResult.room || room);
+          if (onSuccess) {
+            onSuccess(updateResult.room || room);
+          }
         }
       } else {
         // No images - descriptions already saved above

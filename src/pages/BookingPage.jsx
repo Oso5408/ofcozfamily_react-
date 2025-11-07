@@ -13,7 +13,7 @@ import { roomsData } from '@/data/roomsData';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { generateReceiptNumber } from '@/lib/utils';
-import { bookingService, roomService } from '@/services';
+import { bookingService, roomService, storageService, emailService } from '@/services';
 
 export const BookingPage = () => {
   const { roomId } = useParams();
@@ -397,14 +397,62 @@ export const BookingPage = () => {
         });
       }
 
+      // Upload receipt if provided (for cash bookings)
+      if (bookingData.bookingType === 'cash' && bookingData.receiptImage) {
+        console.log('📤 Uploading receipt for booking:', result.booking.id);
+
+        // Upload receipt to Supabase Storage
+        const uploadResult = await storageService.uploadReceipt(result.booking.id, bookingData.receiptImage);
+
+        if (uploadResult.success) {
+          console.log('✅ Receipt uploaded successfully:', uploadResult.url);
+
+          // Update booking with receipt URL and change status to to_be_confirmed
+          const updateResult = await bookingService.uploadReceiptForBooking(
+            result.booking.id,
+            uploadResult.url
+          );
+
+          if (updateResult.success) {
+            console.log('✅ Booking updated with receipt URL and status changed to to_be_confirmed');
+
+            // Send receipt received email
+            console.log('📧 Sending receipt received email...');
+            try {
+              const emailResult = await emailService.sendReceiptReceivedEmail(
+                updateResult.booking,
+                language
+              );
+
+              if (emailResult.success) {
+                console.log('✅ Receipt received email sent successfully');
+              } else {
+                console.error('❌ Failed to send receipt received email:', emailResult.error);
+              }
+            } catch (emailError) {
+              console.error('❌ Email service error:', emailError);
+            }
+          } else {
+            console.error('❌ Failed to update booking with receipt:', updateResult.error);
+          }
+        } else {
+          console.error('❌ Receipt upload failed:', uploadResult.error);
+        }
+      }
+
       // Show success message
       const roomName = t.rooms.roomNames[selectedRoom.name];
       if (bookingData.bookingType === 'cash') {
+        const hasReceipt = bookingData.receiptImage;
         toast({
           title: language === 'zh' ? '預約已提交' : 'Booking Submitted',
-          description: language === 'zh'
-            ? `您的${roomName}預約已提交。${t.booking.receipt.uploadReminder}`
-            : `Your ${roomName} booking has been submitted. ${t.booking.receipt.uploadReminder}`,
+          description: hasReceipt
+            ? (language === 'zh'
+              ? `您的${roomName}預約已提交，收據已上傳。我們將在24小時內審核。`
+              : `Your ${roomName} booking has been submitted with receipt. We'll review within 24 hours.`)
+            : (language === 'zh'
+              ? `您的${roomName}預約已提交。${t.booking.receipt.uploadReminder}`
+              : `Your ${roomName} booking has been submitted. ${t.booking.receipt.uploadReminder}`),
           duration: 8000,
         });
       } else {

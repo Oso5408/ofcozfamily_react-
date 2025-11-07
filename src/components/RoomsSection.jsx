@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { roomService } from '@/services/roomService';
 import { LoginPromptModal } from '@/components/LoginPromptModal';
 
-const RoomCard = ({ room, index, t, onBookingClick }) => {
+const RoomCard = ({ room, index, t, language, onBookingClick }) => {
   const [reviews, setReviews] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
@@ -140,15 +140,18 @@ const RoomCard = ({ room, index, t, onBookingClick }) => {
           <div className="mb-6 flex-grow">
             <h4 className="font-medium text-amber-800 mb-2">{t.rooms.descriptionTitle}</h4>
             <p className="text-amber-700 text-sm whitespace-pre-wrap">
-              {t.rooms.roomDescriptions[room.name]}
+              {language === 'zh'
+                ? (room.description_zh || t.rooms.roomDescriptions[room.name])
+                : (room.description_en || t.rooms.roomDescriptions[room.name])
+              }
             </p>
           </div>
 
-          <Button 
+          <Button
             className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white mt-auto"
             onClick={handleBookingClick}
           >
-            {t.rooms.bookButton}
+            {room.id === 9 ? t.rooms.bookButtonDayPass : t.rooms.bookButton}
           </Button>
         </div>
       </Card>
@@ -252,7 +255,7 @@ export const RoomsSection = () => {
             {visibleRooms.some(room => room.id === 9) && (
               <div className="mb-12">
                 <h3 className="text-2xl font-bold text-amber-800 mb-6 text-center">
-                  {language === 'zh' ? '時租預約' : 'Hourly Booking'}
+                  {language === 'zh' ? '預約' : 'Booking'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {visibleRooms
@@ -263,6 +266,7 @@ export const RoomsSection = () => {
                         index={index}
                         key={room.id}
                         t={t}
+                        language={language}
                         onBookingClick={handleBookingClick}
                       />
                     ))}
@@ -280,6 +284,7 @@ export const RoomsSection = () => {
                     index={index}
                     key={room.id}
                     t={t}
+                    language={language}
                     onBookingClick={handleBookingClick}
                   />
                 ))}

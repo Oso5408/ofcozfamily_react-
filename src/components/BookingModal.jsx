@@ -59,7 +59,6 @@ export const BookingModal = ({
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [purposeError, setPurposeError] = useState(false);
-  const [noSpecialRequests, setNoSpecialRequests] = useState(false);
   const [useAccountInfo, setUseAccountInfo] = useState(false);
   const hasRefreshedProfile = useRef(false);
 
@@ -354,8 +353,6 @@ export const BookingModal = ({
             businessPurposes={businessPurposes}
             handlePurposeChange={handlePurposeChange}
             showOtherPurposeInput={showOtherPurposeInput}
-            noSpecialRequests={noSpecialRequests}
-            setNoSpecialRequests={setNoSpecialRequests}
             purposeError={purposeError}
             totalPrice={totalPrice}
             user={user}
@@ -816,33 +813,14 @@ export const BookingModal = ({
               <Label htmlFor="requests" className="text-amber-800">
                 {t.booking.specialRequests} <span className="text-red-500">*</span>
               </Label>
-              <div className="flex items-center space-x-2 mb-2">
-                <Checkbox
-                  id="no-special-requests"
-                  checked={noSpecialRequests}
-                  onCheckedChange={(checked) => {
-                    setNoSpecialRequests(checked);
-                    if (checked) {
-                      setBookingData({ ...bookingData, specialRequests: '不需要' });
-                    } else {
-                      setBookingData({ ...bookingData, specialRequests: '' });
-                    }
-                  }}
-                />
-                <Label htmlFor="no-special-requests" className="text-sm font-medium text-amber-700 cursor-pointer">
-                  {language === 'zh' ? '不需要' : 'Not needed'}
-                </Label>
-              </div>
-              {!noSpecialRequests && (
-                <Textarea
-                  id="requests"
-                  required
-                  value={bookingData.specialRequests}
-                  onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
-                  placeholder={t.booking.specialRequestsPlaceholderUpdated}
-                  className="border-amber-200 focus:border-amber-400 placeholder-gray-400"
-                />
-              )}
+              <Textarea
+                id="requests"
+                required
+                value={bookingData.specialRequests}
+                onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
+                placeholder={t.booking.specialRequestsPlaceholderUpdated}
+                className="border-amber-200 focus:border-amber-400 placeholder-gray-400 mt-2"
+              />
             </div>
             
             <div className="flex items-start space-x-2">

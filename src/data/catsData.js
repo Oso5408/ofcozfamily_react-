@@ -2,7 +2,7 @@ export const catsData = [
   { 
     name: 'Gucci', 
     nameZh: 'Gucci', 
-    color: 'Black & White', 
+    color: 'Gray White', 
     personality: 'Mysterious & Sweet',
     image: 'https://storage.googleapis.com/hostinger-horizons-assets-prod/39c194f1-5fbb-4e09-860b-f8ae67cf7c2e/78ee10ec17538ebcb6ac559fb2a72069.jpg'
   },
@@ -16,7 +16,7 @@ export const catsData = [
   { 
     name: 'Louis', 
     nameZh: 'Louis', 
-    color: 'Black & White', 
+    color: 'Gray White', 
     personality: 'Explorer & Active',
     image: 'https://storage.googleapis.com/hostinger-horizons-assets-prod/39c194f1-5fbb-4e09-860b-f8ae67cf7c2e/de624be9859dd6bad52a6ce54c918c2d.jpg'
   },
@@ -37,7 +37,7 @@ export const catsData = [
   { 
     name: 'Forsty', 
     nameZh: 'Forsty', 
-    color: 'Black & White', 
+    color: 'Light Brownish White', 
     personality: 'Playful & Friendly',
     image: 'https://storage.googleapis.com/hostinger-horizons-assets-prod/39c194f1-5fbb-4e09-860b-f8ae67cf7c2e/2fb2b239bb8de32c15ae1b708f935bdd.jpg'
   }

@@ -84,7 +84,7 @@ export const FavoritesTab = ({ favorites, onToggleFavorite }) => {
                             </div>
                             <Link to="/" className="block mt-4">
                                 <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white">
-                                    {t.rooms.bookButton}
+                                    {room.id === 9 ? t.rooms.bookButtonDayPass : t.rooms.bookButton}
                                 </Button>
                             </Link>
                         </motion.div>
