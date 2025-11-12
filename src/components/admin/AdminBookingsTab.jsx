@@ -662,10 +662,18 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                       {t.admin.confirmBooking}
                     </Button>
                   )}
-                  {booking.status === 'to_be_confirmed' && !booking.receipt_url && (
+                  {/* Only show "waiting for receipt" message for CASH payments without receipts */}
+                  {booking.status === 'to_be_confirmed' && !booking.receipt_url && booking.paymentMethod === 'cash' && (
                     <span className="text-sm text-yellow-600 italic">{language === 'zh' ? '等待收據上傳' : 'Awaiting receipt upload'}</span>
                   )}
-                  {booking.status === 'pending' && !booking.receipt_url && (
+                  {/* For token/DP20 payments with to_be_confirmed status, show confirmation button */}
+                  {booking.status === 'to_be_confirmed' && (booking.paymentMethod === 'token' || booking.paymentMethod === 'dp20') && (
+                    <Button onClick={() => handleViewReceipt(booking)} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      {t.admin.confirmBooking}
+                    </Button>
+                  )}
+                  {booking.status === 'pending' && !booking.receipt_url && booking.paymentMethod === 'cash' && (
                     <span className="text-sm text-yellow-600 italic">{language === 'zh' ? '等待收據上傳' : 'Awaiting receipt upload'}</span>
                   )}
                   {booking.status === 'pending' && booking.payment_status === 'pending' && (

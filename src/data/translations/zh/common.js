@@ -188,7 +188,7 @@ export const common = {
     title: "聯絡我們",
     subtitle: "有問題嗎？我們很樂意為您解答！",
     location: "地址",
-    phone: "電話查詢",
+    phone: "WhatsApp查詢",
     email: "郵箱"
   },
   footer: {

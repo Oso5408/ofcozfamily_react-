@@ -10,11 +10,14 @@ This is a React-based cat cafe booking and e-commerce web application with bilin
 
 ### Core Commands
 - `npm run dev` - Start development server with Vite
-- `npm run build` - Build for production (runs `tools/generate-llms.js` then Vite build)
+- `npm run build` - Build for production
 - `npm run preview` - Preview production build
 
-### Build Process
-The build command executes `tools/generate-llms.js` before building, which appears to extract routing and metadata information from the codebase.
+### Testing Commands
+- `npm test` - Run tests in watch mode with Vitest
+- `npm run test:ui` - Run tests with UI interface
+- `npm run test:run` - Run tests once (CI mode)
+- `npm run test:coverage` - Run tests with coverage report
 
 ## Architecture Overview
 
@@ -93,7 +96,63 @@ Uses Tailwind CSS with a custom design system featuring:
 - Shopping cart persisted to localStorage
 - Bilingual content managed through structured translation files
 
+### Services Layer
+All backend interactions are abstracted through service modules in `src/services/`:
+- **authService** - Handles Supabase authentication (signup, login, logout, session management)
+- **userService** - User CRUD operations (get, update, delete user profiles)
+- **bookingService** - Booking management (create, read, update, cancel bookings)
+- **roomService** - Room data and availability queries
+- **productService** - E-commerce product management
+- **storageService** - Supabase Storage for file uploads (images, videos, receipts)
+- **emailService** - Email notifications via Resend API
+- **cancellationPolicyService** - Booking cancellation logic and refunds
+
+**Important:** Always use service layer functions instead of direct Supabase client calls. Services handle error handling, data transformation, and RLS properly.
+
+## Database Schema
+
+### Core Tables
+- **users** - User profiles linked to Supabase auth.users (id, email, full_name, phone, tokens, token_valid_until, is_admin)
+- **rooms** - Bookable spaces (id, name, capacity, prices, features, booking_options, images)
+- **bookings** - Room reservations (id, user_id, room_id, start_time, end_time, booking_type, payment_method, status)
+- **token_history** - Token transaction ledger (id, user_id, change, new_balance, transaction_type, booking_id)
+- **products** - E-commerce items (id, name, price, category, stock_quantity)
+- **orders** - Purchase orders (id, user_id, total_amount, status)
+- **order_items** - Order line items (id, order_id, product_id, quantity, price)
+
+### Important Database Concepts
+1. **Row Level Security (RLS)**: All tables have RLS policies. Users can only see/modify their own data; admins have broader access.
+2. **Foreign Key Cascades**: Deleting a user cascades to their bookings and token history.
+3. **Booking Constraints**: `no_overlapping_bookings` constraint prevents double-booking rooms.
+4. **Database Trigger**: `handle_new_user()` trigger auto-creates user profile in `public.users` when auth user is created.
+
+### Setup Instructions
+- **Initial Setup**: Run `supabase/complete-setup.sql` for clean installation
+- **Schema Reference**: See `DATABASE_ARCHITECTURE.md` for detailed ERD and relationships
+- **Common Migrations**: The `supabase/` folder contains many incremental migrations for specific features
+
 ## Known Issues & Solutions
+
+### User Management Issues
+
+**Status:** PARTIALLY FIXED - Requires SQL migrations
+
+Several admin user management features require database policy updates:
+
+1. **User Profile Edit** (`FIX-USER-PROFILE-EDIT.md`)
+   - **Issue**: Admins cannot edit user profiles (name, email, phone)
+   - **Fix**: Run `supabase/check-and-fix-users-update-policy.sql`
+   - **Adds**: UPDATE policies for admins and users to edit profiles
+
+2. **Delete User** (`FIX-DELETE-AND-PASSWORD-RESET.md`)
+   - **Issue**: Delete button doesn't work
+   - **Fix**: Run `supabase/add-users-delete-policy.sql`
+   - **Adds**: DELETE policy for admins
+   - **Limitation**: Only deletes profile, not auth user (requires backend API with service_role key)
+
+3. **Password Reset** (`FIX-DELETE-AND-PASSWORD-RESET.md`)
+   - **Status**: FIXED in code
+   - **Behavior**: Sends password reset email via Supabase (secure method)
 
 ### Registration Page Issues
 
@@ -194,3 +253,106 @@ Currently, clicking "查看日視圖" tries to navigate to `/admin/daily-booking
    - Filter by date and normalize data similar to AdminBookingsTab
    - Map `receipt_number` to `receiptNumber`
 4. Test the timeline visualization works correctly
+
+## Working with the Codebase
+
+### Adding New Features
+
+**When adding authentication-protected features:**
+1. Check user authentication state via `useAuth()` hook from `AuthContext`
+2. For admin-only features, check `user.is_admin` boolean
+3. Protected routes should redirect to `/login?returnUrl=[current-path]`
+
+**When adding database operations:**
+1. Always add new operations to the appropriate service in `src/services/`
+2. Ensure RLS policies allow the operation (test with non-admin user)
+3. Use `try-catch` blocks and return `{ error }` objects for failures
+4. Handle both success and error cases in the UI with toast notifications
+
+**When adding bilingual content:**
+1. Add translation keys to both `src/data/translations/en/` and `src/data/translations/zh/`
+2. Use `useLanguage()` hook to access `t()` translation function
+3. Structure: `t('section.key')` where section matches file name in translations folder
+4. Keep translation files organized by feature (auth, booking, admin, common, etc.)
+
+### Common Patterns
+
+**Field Name Inconsistencies:**
+The codebase has an ongoing migration from camelCase to snake_case for database fields. Be aware of these mappings:
+- `receiptNumber` ↔ `receipt_number`
+- `startTime` ↔ `start_time`
+- `endTime` ↔ `end_time`
+- `userId` ↔ `user_id`
+- `roomId` ↔ `room_id`
+
+When reading from database, services typically transform snake_case to camelCase for frontend use.
+
+**Toast Notifications:**
+Use the toast system from `src/components/ui/toaster`:
+```javascript
+import { useToast } from '@/hooks/use-toast';
+
+const { toast } = useToast();
+toast({
+  title: "Success",
+  description: "Operation completed",
+  variant: "default" // or "destructive" for errors
+});
+```
+
+**Path Aliases:**
+The project uses `@/` alias for `src/` directory (configured in vite.config.js):
+- `@/components/ui/button` instead of `../../components/ui/button`
+- `@/lib/utils` instead of `../../../lib/utils`
+
+## Environment Setup
+
+### Required Environment Variables
+Create a `.env` file in the project root:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_RESEND_API_KEY=your_resend_api_key (for emails)
+```
+
+### Supabase Configuration
+1. **Authentication Settings** (Supabase Dashboard → Authentication → Settings):
+   - Enable Email provider
+   - Configure email templates (optional)
+   - Set site URL and redirect URLs
+
+2. **Storage Buckets** (required for file uploads):
+   - `room-images` - Public bucket for room photos
+   - `videos` - Public bucket for promotional videos
+   - Run `supabase/setup-room-images-storage.sql` and `supabase/setup-video-storage.sql`
+
+3. **Email Service** (optional but recommended):
+   - Configure Resend API key or SMTP settings
+   - See `EMAIL-SETUP-GUIDE.md` for detailed instructions
+
+## Troubleshooting
+
+### Common Build/Runtime Issues
+
+**Vite Build Errors with Babel Packages:**
+The build process excludes certain Babel packages from the bundle (see vite.config.js). If you encounter import errors with `@babel/parser`, `@babel/traverse`, etc., verify they're listed in `rollupOptions.external`.
+
+**Visual Editor Not Loading:**
+The visual editor plugins only load in development mode. In production, they're gracefully skipped.
+
+**CORS Errors with Supabase:**
+Ensure your local development server URL (http://localhost:5173 by default) is added to Supabase's allowed origins in Authentication settings.
+
+**Booking Overlap Errors:**
+If you get errors creating bookings, check the `no_overlapping_bookings` constraint in the database. The constraint ignores cancelled bookings but prevents overlapping confirmed bookings for the same room.
+
+## Additional Resources
+
+The `supabase/` directory contains many SQL migration files for specific features. Key files:
+- `complete-setup.sql` - Full database setup (start here for new projects)
+- `add-br-package-system.sql` - BR (Boardroom) package feature
+- `add-dp20-package-system.sql` - DP20 (Day Pass) package feature
+- `booking-payment-fields.sql` - Payment and receipt handling
+
+Documentation files (`.md` in root) provide detailed guides for specific features and fixes. Refer to these when working on related functionality.

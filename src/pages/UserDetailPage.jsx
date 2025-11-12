@@ -5,12 +5,13 @@ import { Helmet } from "react-helmet-async";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
 import { PackageAssignmentModal } from '@/components/admin/PackageAssignmentModal';
 import { bookingService } from '@/services/bookingService';
 import { userService } from '@/services/userService';
@@ -29,10 +30,16 @@ export const UserDetailPage = () => {
   const [packageHistory, setPackageHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('add'); // 'add' or 'deduct'
   const [isBookingExpanded, setIsBookingExpanded] = useState(true);
   const [isPackageExpanded, setIsPackageExpanded] = useState(true);
   const [bookingStartDate, setBookingStartDate] = useState('');
   const [bookingEndDate, setBookingEndDate] = useState('');
+  const [editingExpiryId, setEditingExpiryId] = useState(null);
+  const [newExpiryDate, setNewExpiryDate] = useState('');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editedProfile, setEditedProfile] = useState({});
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Check admin access
   useEffect(() => {
@@ -94,17 +101,19 @@ export const UserDetailPage = () => {
   }, [userId, language, toast]);
 
   const handlePackageAssignment = async (packageData) => {
-    const { packageType, quantity, expiry, reason } = packageData;
+    const { packageType, quantity, expiry, reason, mode } = packageData;
 
     try {
       let result;
+      // For deduction, quantity should be negative
+      const amount = mode === 'deduct' ? -Math.abs(quantity) : quantity;
 
       // Call the function once with quantity as the amount, and pass expiry date
       if (packageType === 'DP20') {
-        result = await assignDP20Package(userId, adminUser.id, quantity, expiry, reason);
+        result = await assignDP20Package(userId, adminUser.id, amount, expiry, reason);
       } else {
         // BR15 or BR30
-        result = await assignBRPackage(userId, packageType, adminUser.id, quantity, expiry, reason);
+        result = await assignBRPackage(userId, packageType, adminUser.id, amount, expiry, reason);
       }
 
       if (result && result.success) {
@@ -125,17 +134,23 @@ export const UserDetailPage = () => {
           setPackageHistory(historyData);
         }
 
+        const actionText = mode === 'deduct'
+          ? (language === 'zh' ? '已扣除' : 'Deducted')
+          : (language === 'zh' ? '已分配' : 'Assigned');
+
         toast({
-          title: language === 'zh' ? '套票已分配' : 'Package Assigned',
+          title: language === 'zh' ? `套票${actionText}` : `Package ${actionText}`,
           description: reason
-            ? `${language === 'zh' ? `已成功分配 ${packageType} 套票` : `Successfully assigned ${packageType} package`} - ${language === 'zh' ? '原因' : 'Reason'}: ${reason}`
+            ? `${language === 'zh' ? `已成功${actionText} ${packageType} 套票` : `Successfully ${actionText.toLowerCase()} ${packageType} package`} - ${language === 'zh' ? '原因' : 'Reason'}: ${reason}`
             : language === 'zh'
-              ? `已成功分配 ${packageType} 套票`
-              : `Successfully assigned ${packageType} package`
+              ? `已成功${actionText} ${packageType} 套票`
+              : `Successfully ${actionText.toLowerCase()} ${packageType} package`
         });
       } else {
         toast({
-          title: language === 'zh' ? '分配失敗' : 'Assignment Failed',
+          title: mode === 'deduct'
+            ? (language === 'zh' ? '扣除失敗' : 'Deduction Failed')
+            : (language === 'zh' ? '分配失敗' : 'Assignment Failed'),
           description: result?.error || (language === 'zh' ? '發生錯誤' : 'An error occurred'),
           variant: 'destructive'
         });
@@ -143,7 +158,9 @@ export const UserDetailPage = () => {
     } catch (error) {
       console.error('Error assigning package:', error);
       toast({
-        title: language === 'zh' ? '分配失敗' : 'Assignment Failed',
+        title: mode === 'deduct'
+          ? (language === 'zh' ? '扣除失敗' : 'Deduction Failed')
+          : (language === 'zh' ? '分配失敗' : 'Assignment Failed'),
         description: language === 'zh' ? '發生錯誤' : 'An error occurred',
         variant: 'destructive'
       });
@@ -173,6 +190,150 @@ export const UserDetailPage = () => {
   const clearBookingFilter = () => {
     setBookingStartDate('');
     setBookingEndDate('');
+  };
+
+  const handleEditExpiry = (item) => {
+    setEditingExpiryId(item.id);
+    setNewExpiryDate(item.expiry_date ? item.expiry_date.split('T')[0] : '');
+  };
+
+  const handleSaveExpiry = async (itemId) => {
+    try {
+      console.log('🔄 Attempting to update expiry date:', { itemId, newExpiryDate });
+
+      const { data, error } = await supabase
+        .from('package_history')
+        .update({ expiry_date: newExpiryDate })
+        .eq('id', itemId)
+        .select();
+
+      if (error) {
+        console.error('❌ Supabase error:', error);
+
+        // Check if it's a permission error
+        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+          toast({
+            title: language === 'zh' ? '權限錯誤' : 'Permission Error',
+            description: language === 'zh'
+              ? '缺少更新權限。請在 Supabase 執行 add-package-history-update-policy.sql'
+              : 'Missing UPDATE policy. Please run add-package-history-update-policy.sql in Supabase',
+            variant: 'destructive',
+            duration: 10000
+          });
+          return;
+        }
+
+        throw error;
+      }
+
+      console.log('✅ Update successful:', data);
+
+      // Refresh package history
+      const { data: historyData } = await supabase
+        .from('package_history')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (historyData) {
+        setPackageHistory(historyData);
+      }
+
+      setEditingExpiryId(null);
+      setNewExpiryDate('');
+
+      toast({
+        title: language === 'zh' ? '更新成功' : 'Updated Successfully',
+        description: language === 'zh' ? '到期日已更新' : 'Expiry date has been updated'
+      });
+    } catch (error) {
+      console.error('❌ Error updating expiry date:', error);
+      toast({
+        title: language === 'zh' ? '更新失敗' : 'Update Failed',
+        description: error.message || (language === 'zh' ? '無法更新到期日' : 'Failed to update expiry date'),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingExpiryId(null);
+    setNewExpiryDate('');
+  };
+
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+    setEditedProfile({
+      full_name: userProfile.full_name || userProfile.name || '',
+      email: userProfile.email || '',
+      phone: userProfile.phone || ''
+    });
+  };
+
+  const handleCancelProfileEdit = () => {
+    setIsEditingProfile(false);
+    setEditedProfile({});
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    try {
+      console.log('🔄 Updating user profile:', { userId, editedProfile });
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          full_name: editedProfile.full_name,
+          email: editedProfile.email,
+          phone: editedProfile.phone
+        })
+        .eq('id', userId)
+        .select();
+
+      if (error) {
+        console.error('❌ Supabase error:', error);
+
+        // Check if it's a permission error
+        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+          toast({
+            title: language === 'zh' ? '權限錯誤' : 'Permission Error',
+            description: language === 'zh'
+              ? '缺少更新權限。請在 Supabase 執行 check-and-fix-users-update-policy.sql'
+              : 'Missing UPDATE policy. Please run check-and-fix-users-update-policy.sql in Supabase',
+            variant: 'destructive',
+            duration: 10000
+          });
+          return;
+        }
+
+        throw error;
+      }
+
+      console.log('✅ Profile update successful:', data);
+
+      // Refresh user profile
+      const profileResult = await userService.getUserProfile(userId);
+      if (profileResult.success) {
+        setUserProfile(profileResult.profile);
+      }
+
+      setIsEditingProfile(false);
+      setEditedProfile({});
+
+      toast({
+        title: language === 'zh' ? '更新成功' : 'Updated Successfully',
+        description: language === 'zh' ? '用戶資料已更新' : 'User profile has been updated'
+      });
+    } catch (error) {
+      console.error('❌ Error updating profile:', error);
+      toast({
+        title: language === 'zh' ? '更新失敗' : 'Update Failed',
+        description: error.message || (language === 'zh' ? '無法更新用戶資料' : 'Failed to update user profile'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const getStatusBadge = (booking) => {
@@ -248,9 +409,22 @@ export const UserDetailPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Left Column - User Details */}
               <Card className="p-6 glass-effect cat-shadow border-amber-200">
-                <h2 className="text-2xl font-bold text-amber-800 mb-6">
-                  {language === 'zh' ? '詳情' : 'Details'}
-                </h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-amber-800">
+                    {language === 'zh' ? '詳情' : 'Details'}
+                  </h2>
+                  {!isEditingProfile && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleEditProfile}
+                      className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      {language === 'zh' ? '編輯' : 'Edit'}
+                    </Button>
+                  )}
+                </div>
 
                 {/* Profile Photo Placeholder */}
                 <div className="flex items-start space-x-4 mb-6">
@@ -273,50 +447,93 @@ export const UserDetailPage = () => {
 
                 {/* User Information */}
                 <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-amber-600 mb-1">
-                      {language === 'zh' ? '稱呼' : 'Title'}
-                    </p>
-                    <p className="text-amber-800 font-medium">
-                      {userProfile.title || '-'}
-                    </p>
-                  </div>
+                  {isEditingProfile ? (
+                    <>
+                      {/* Editing Mode */}
+                      <div>
+                        <Label className="text-amber-800 mb-2">
+                          {language === 'zh' ? '姓名' : 'Name'}
+                        </Label>
+                        <Input
+                          value={editedProfile.full_name || ''}
+                          onChange={(e) => setEditedProfile({ ...editedProfile, full_name: e.target.value })}
+                          className="border-amber-200 focus:border-amber-400"
+                        />
+                      </div>
 
-                  <div>
-                    <p className="text-sm text-amber-600 mb-1">
-                      {language === 'zh' ? '姓氏' : 'Last Name'}
-                    </p>
-                    <p className="text-amber-800 font-medium">
-                      {userProfile.last_name || '-'}
-                    </p>
-                  </div>
+                      <div>
+                        <Label className="text-amber-800 mb-2">
+                          {language === 'zh' ? '電郵' : 'Email'}
+                        </Label>
+                        <Input
+                          type="email"
+                          value={editedProfile.email || ''}
+                          onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
+                          className="border-amber-200 focus:border-amber-400"
+                        />
+                      </div>
 
-                  <div>
-                    <p className="text-sm text-amber-600 mb-1">
-                      {language === 'zh' ? '名字' : 'First Name'}
-                    </p>
-                    <p className="text-amber-800 font-medium">
-                      {userProfile.first_name || '-'}
-                    </p>
-                  </div>
+                      <div>
+                        <Label className="text-amber-800 mb-2">
+                          {language === 'zh' ? '電話' : 'Phone'}
+                        </Label>
+                        <Input
+                          value={editedProfile.phone || ''}
+                          onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
+                          className="border-amber-200 focus:border-amber-400"
+                        />
+                      </div>
 
-                  <div>
-                    <p className="text-sm text-amber-600 mb-1">
-                      {language === 'zh' ? '電郵' : 'Email'}
-                    </p>
-                    <p className="text-amber-800 font-medium">
-                      {userProfile.email}
-                    </p>
-                  </div>
+                      {/* Action Buttons */}
+                      <div className="flex gap-3 pt-4">
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={isSavingProfile}
+                          className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white flex-1"
+                        >
+                          {isSavingProfile ? (language === 'zh' ? '保存中...' : 'Saving...') : (language === 'zh' ? '保存' : 'Save')}
+                        </Button>
+                        <Button
+                          onClick={handleCancelProfileEdit}
+                          variant="outline"
+                          disabled={isSavingProfile}
+                          className="border-amber-300 text-amber-700 flex-1"
+                        >
+                          {language === 'zh' ? '取消' : 'Cancel'}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Display Mode */}
+                      <div>
+                        <p className="text-sm text-amber-600 mb-1">
+                          {language === 'zh' ? '姓名' : 'Name'}
+                        </p>
+                        <p className="text-amber-800 font-medium">
+                          {userProfile.full_name || userProfile.name || '-'}
+                        </p>
+                      </div>
 
-                  <div>
-                    <p className="text-sm text-amber-600 mb-1">
-                      {language === 'zh' ? '電話' : 'Phone'}
-                    </p>
-                    <p className="text-amber-800 font-medium">
-                      {userProfile.phone || '-'}
-                    </p>
-                  </div>
+                      <div>
+                        <p className="text-sm text-amber-600 mb-1">
+                          {language === 'zh' ? '電郵' : 'Email'}
+                        </p>
+                        <p className="text-amber-800 font-medium">
+                          {userProfile.email}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-amber-600 mb-1">
+                          {language === 'zh' ? '電話' : 'Phone'}
+                        </p>
+                        <p className="text-amber-800 font-medium">
+                          {userProfile.phone || '-'}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </Card>
 
@@ -474,12 +691,28 @@ export const UserDetailPage = () => {
                     <p className="text-sm text-amber-600">
                       {language === 'zh' ? '如需增值,付款後請聯絡客服.' : 'To top up, please contact customer service after payment.'}
                     </p>
-                    <Button
-                      onClick={() => setIsModalOpen(true)}
-                      className="mt-3 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      {language === 'zh' ? '增值' : 'Top Up'}
-                    </Button>
+                    <div className="flex gap-3 mt-3">
+                      <Button
+                        onClick={() => {
+                          setModalMode('add');
+                          setIsModalOpen(true);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        {language === 'zh' ? '增值' : 'Add'}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setModalMode('deduct');
+                          setIsModalOpen(true);
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        <Minus className="w-4 h-4 mr-1" />
+                        {language === 'zh' ? '扣除' : 'Deduct'}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Package History Table */}
@@ -538,15 +771,51 @@ export const UserDetailPage = () => {
                                     </p>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <p className="text-sm text-amber-700">
-                                      {item.expiry_date
-                                        ? new Date(item.expiry_date).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US', {
-                                            year: 'numeric',
-                                            month: '2-digit',
-                                            day: '2-digit'
-                                          })
-                                        : (language === 'zh' ? '無限期' : 'Unlimited')}
-                                    </p>
+                                    {editingExpiryId === item.id ? (
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="date"
+                                          value={newExpiryDate}
+                                          onChange={(e) => setNewExpiryDate(e.target.value)}
+                                          className="border-amber-200 focus:border-amber-400 text-sm"
+                                        />
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleSaveExpiry(item.id)}
+                                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-xs"
+                                        >
+                                          {language === 'zh' ? '保存' : 'Save'}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={handleCancelEdit}
+                                          className="border-amber-300 text-amber-700 px-2 py-1 text-xs"
+                                        >
+                                          {language === 'zh' ? '取消' : 'Cancel'}
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm text-amber-700">
+                                          {item.expiry_date
+                                            ? new Date(item.expiry_date).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US', {
+                                                year: 'numeric',
+                                                month: '2-digit',
+                                                day: '2-digit'
+                                              })
+                                            : (language === 'zh' ? '無限期' : 'Unlimited')}
+                                        </p>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => handleEditExpiry(item)}
+                                          className="p-1 h-auto hover:bg-amber-100"
+                                        >
+                                          <Edit2 className="w-4 h-4 text-amber-600" />
+                                        </Button>
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -578,6 +847,7 @@ export const UserDetailPage = () => {
         userId={userId}
         userName={userName}
         language={language}
+        mode={modalMode}
       />
     </>
   );

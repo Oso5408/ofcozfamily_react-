@@ -131,14 +131,51 @@ export const AdminPage = () => {
     });
   };
 
-  const handlePasswordReset = (userId) => {
-    const newPassword = generatePassword();
-    const result = adminResetPassword(userId, newPassword);
-    if(result.success) {
+  const handlePasswordReset = async (userId) => {
+    try {
       const targetUser = users.find(u => u.id === userId);
+
+      if (!targetUser || !targetUser.email) {
+        toast({
+          title: language === 'zh' ? '重設失敗' : 'Reset Failed',
+          description: language === 'zh' ? '找不到用戶電郵' : 'User email not found',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Import supabase client
+      const { supabase } = await import('@/lib/supabase');
+
+      // Send password reset email
+      const { error } = await supabase.auth.resetPasswordForEmail(targetUser.email, {
+        redirectTo: `${window.location.origin}/#/reset-password`,
+      });
+
+      if (error) {
+        console.error('Password reset error:', error);
+        toast({
+          title: language === 'zh' ? '重設失敗' : 'Reset Failed',
+          description: error.message || (language === 'zh' ? '無法發送重設郵件' : 'Failed to send reset email'),
+          variant: 'destructive',
+          duration: 5000
+        });
+        return;
+      }
+
       toast({
-        title: t.admin.resetPasswordSuccess.replace('{name}', targetUser.name),
-        description: `${language === 'zh' ? '新密碼是：' : 'The new password is: '}${newPassword}`
+        title: language === 'zh' ? '郵件已發送' : 'Email Sent',
+        description: language === 'zh'
+          ? `密碼重設郵件已發送到 ${targetUser.email}`
+          : `Password reset email has been sent to ${targetUser.email}`,
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: error.message || (language === 'zh' ? '無法重設密碼' : 'Failed to reset password'),
+        variant: 'destructive'
       });
     }
   };

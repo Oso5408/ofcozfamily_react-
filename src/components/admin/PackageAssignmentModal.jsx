@@ -25,7 +25,8 @@ export const PackageAssignmentModal = ({
   onSubmit,
   userId,
   userName,
-  language
+  language,
+  mode = 'add' // 'add' or 'deduct'
 }) => {
   const [packageType, setPackageType] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -42,7 +43,8 @@ export const PackageAssignmentModal = ({
         packageType,
         quantity: parseInt(quantity),
         expiry,
-        reason
+        reason,
+        mode
       });
 
       // Reset form
@@ -76,13 +78,15 @@ export const PackageAssignmentModal = ({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-amber-800">
-            {language === 'zh' ? '增值' : 'Add Package'}
+          <DialogTitle className={mode === 'deduct' ? 'text-red-800' : 'text-amber-800'}>
+            {mode === 'deduct'
+              ? (language === 'zh' ? '扣除' : 'Deduct Package')
+              : (language === 'zh' ? '增值' : 'Add Package')}
           </DialogTitle>
           <DialogDescription>
-            {language === 'zh'
-              ? `為 ${userName} 分配套票`
-              : `Assign package to ${userName}`}
+            {mode === 'deduct'
+              ? (language === 'zh' ? `為 ${userName} 扣除套票` : `Deduct package from ${userName}`)
+              : (language === 'zh' ? `為 ${userName} 分配套票` : `Assign package to ${userName}`)}
           </DialogDescription>
         </DialogHeader>
 
@@ -118,26 +122,31 @@ export const PackageAssignmentModal = ({
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                   className="border-amber-200 focus:border-amber-400"
                 />
-                <p className="text-sm text-amber-600">
-                  {language === 'zh' ? '將增加' : 'Will add'} <strong>{getBRAmount()}</strong> {packageType === 'DP20' ? (language === 'zh' ? '次' : 'visits') : 'BR'}
+                <p className={`text-sm ${mode === 'deduct' ? 'text-red-600' : 'text-amber-600'}`}>
+                  {mode === 'deduct'
+                    ? (language === 'zh' ? '將扣除' : 'Will deduct')
+                    : (language === 'zh' ? '將增加' : 'Will add')
+                  } <strong>{getBRAmount()}</strong> {packageType === 'DP20' ? (language === 'zh' ? '次' : 'visits') : 'BR'}
                 </p>
               </div>
 
-              {/* Expiry Date Picker */}
-              <div className="space-y-2">
-                <Label className="text-amber-800">
-                  {language === 'zh' ? '有效期 *' : 'Expiry *'}
-                </Label>
-                <DatePicker
-                  value={expiry}
-                  onChange={(e) => setExpiry(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="border-amber-200 focus:border-amber-400 w-full"
-                />
-                <p className="text-xs text-amber-600">
-                  {language === 'zh' ? '選擇套票的到期日期' : 'Select the expiry date for the package'}
-                </p>
-              </div>
+              {/* Expiry Date Picker - Only show for add mode */}
+              {mode === 'add' && (
+                <div className="space-y-2">
+                  <Label className="text-amber-800">
+                    {language === 'zh' ? '有效期 *' : 'Expiry *'}
+                  </Label>
+                  <DatePicker
+                    value={expiry}
+                    onChange={(e) => setExpiry(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="border-amber-200 focus:border-amber-400 w-full"
+                  />
+                  <p className="text-xs text-amber-600">
+                    {language === 'zh' ? '選擇套票的到期日期' : 'Select the expiry date for the package'}
+                  </p>
+                </div>
+              )}
 
               {/* Reason Input */}
               <div className="space-y-2">
@@ -167,8 +176,10 @@ export const PackageAssignmentModal = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!packageType || isSubmitting}
-            className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+            disabled={!packageType || isSubmitting || (mode === 'add' && !expiry)}
+            className={mode === 'deduct'
+              ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
+              : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white'}
           >
             {isSubmitting
               ? (language === 'zh' ? '提交中...' : 'Submitting...')

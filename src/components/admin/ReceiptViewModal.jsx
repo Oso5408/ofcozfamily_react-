@@ -46,7 +46,11 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
     }
   }, [isOpen, booking]);
 
-  if (!booking || !booking.receipt_url) return null;
+  if (!booking) return null;
+
+  // For token/DP20 bookings, no receipt is needed
+  const isTokenPayment = booking.paymentMethod === 'token' || booking.paymentMethod === 'dp20';
+  const hasReceipt = !!booking.receipt_url;
 
   const handleDownload = () => {
     if (receiptUrl) {
@@ -75,10 +79,16 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
       <DialogContent className="sm:max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-amber-800">
-            {t.booking.receipt.viewReceipt}
+            {isTokenPayment
+              ? (language === 'zh' ? '確認預約' : 'Confirm Booking')
+              : t.booking.receipt.viewReceipt
+            }
           </DialogTitle>
           <DialogDescription>
-            {language === 'zh' ? '查看客戶上傳的付款收據' : 'View customer payment receipt'}
+            {isTokenPayment
+              ? (language === 'zh' ? '查看套票預約詳情' : 'View token booking details')
+              : (language === 'zh' ? '查看客戶上傳的付款收據' : 'View customer payment receipt')
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -112,11 +122,32 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
                 </span>{' '}
                 <span className="text-amber-700">HK${booking.total_cost || booking.totalCost}</span>
               </div>
+              <div>
+                <span className="font-semibold text-amber-800">
+                  {language === 'zh' ? '付款方式:' : 'Payment Method:'}
+                </span>{' '}
+                <span className={`text-amber-700 font-medium ${isTokenPayment ? 'text-green-700' : ''}`}>
+                  {booking.paymentMethod === 'token' && (language === 'zh' ? '套票' : 'Token')}
+                  {booking.paymentMethod === 'dp20' && (language === 'zh' ? 'DP20套票' : 'DP20 Package')}
+                  {booking.paymentMethod === 'cash' && (language === 'zh' ? '網上支付' : 'Online Payment')}
+                </span>
+              </div>
+              <div>
+                <span className="font-semibold text-amber-800">
+                  {language === 'zh' ? '付款狀態:' : 'Payment Status:'}
+                </span>{' '}
+                <span className={`font-medium ${(booking.payment_status || booking.paymentStatus) === 'completed' ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {(booking.payment_status || booking.paymentStatus) === 'completed'
+                    ? (language === 'zh' ? '已付款' : 'Paid')
+                    : (language === 'zh' ? '待付款' : 'Pending')}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Receipt Image/PDF Viewer */}
-          <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ minHeight: '400px', maxHeight: '500px' }}>
+          {/* Receipt Image/PDF Viewer - Only show if receipt exists */}
+          {hasReceipt && (
+            <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ minHeight: '400px', maxHeight: '500px' }}>
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
@@ -167,20 +198,49 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
                 </Button>
               </div>
             )}
-          </div>
+            </div>
+          )}
+
+          {/* Token Payment Info - Show when no receipt */}
+          {isTokenPayment && !hasReceipt && (
+            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+              <div className="text-center">
+                <div className="text-4xl mb-4">✅</div>
+                <h3 className="text-xl font-bold text-green-800 mb-2">
+                  {language === 'zh' ? '套票付款已完成' : 'Token Payment Completed'}
+                </h3>
+                <p className="text-green-700 mb-4">
+                  {language === 'zh'
+                    ? '此預約使用套票付款，已自動扣除相應額度。無需上傳收據。'
+                    : 'This booking was paid with tokens. Payment has been automatically deducted. No receipt required.'}
+                </p>
+                <div className="bg-white rounded-lg p-4 inline-block">
+                  <p className="text-sm text-gray-600">
+                    {language === 'zh' ? '付款方式:' : 'Payment Method:'}{' '}
+                    <span className="font-semibold text-green-700">
+                      {booking.paymentMethod === 'dp20' ? 'DP20' : (language === 'zh' ? '套票' : 'Token')}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex justify-between pt-4">
             <div className="flex space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDownload}
-                className="border-amber-300"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {language === 'zh' ? '下載' : 'Download'}
-              </Button>
+              {/* Only show download button if receipt exists */}
+              {hasReceipt && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownload}
+                  className="border-amber-300"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {language === 'zh' ? '下載' : 'Download'}
+                </Button>
+              )}
             </div>
             <div className="flex space-x-2">
               <Button

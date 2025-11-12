@@ -293,10 +293,12 @@ export const BookingPage = () => {
         startTime: startDateTime,
         endTime: endDateTime,
         bookingType: bookingData.rentalType, // 'hourly', 'daily', 'monthly'
-        paymentMethod: bookingData.bookingType, // 'token' or 'cash'
+        paymentMethod: bookingData.bookingType, // 'token' or 'cash' or 'dp20'
         paymentStatus: bookingData.bookingType === 'cash' ? 'pending' : 'completed',
         totalCost: totalCost,
-        status: 'pending', // All new bookings start as pending
+        // Cash: 'pending' (待付款) → waiting for payment
+        // Token/DP20: 'to_be_confirmed' (待確認) → payment completed, awaiting confirmation
+        status: bookingData.bookingType === 'cash' ? 'pending' : 'to_be_confirmed',
         notes: notes,
       });
 

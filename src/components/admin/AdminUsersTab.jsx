@@ -4,12 +4,11 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Eye, Shield, User, KeyRound, Edit, Trash2, Search } from 'lucide-react';
+import { Eye, Shield, User, KeyRound, Trash2, Search } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,14 +23,12 @@ import {
 
 export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }) => {
   const navigate = useNavigate();
-  const { user: adminUser, updateUser, deleteUser } = useAuth();
+  const { user: adminUser, deleteUser } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingUser, setEditingUser] = useState(null);
-  const [profileData, setProfileData] = useState({ name: '', email: '', phone: '' });
   const [userToDelete, setUserToDelete] = useState(null);
 
   const safeUsers = users || [];
@@ -47,29 +44,57 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
     return userName.includes(query) || userPhone.includes(query);
   });
 
-  const startEdit = (user) => {
-    setEditingUser(user.id);
-    setProfileData({ name: user.name, email: user.email, phone: user.phone || '' });
-  };
+  const handleDeleteUser = async (userId) => {
+    console.log('🗑️ handleDeleteUser called with userId:', userId);
 
-  const cancelEdit = () => {
-    setEditingUser(null);
-  };
+    if (!userId) {
+      console.warn('⚠️ No user ID provided for deletion');
+      return;
+    }
 
-  const handleProfileUpdate = () => {
-    if (!editingUser) return;
-    const updatedUser = updateUser(profileData, editingUser);
-    setUsers(safeUsers.map(u => u.id === editingUser ? { ...u, ...updatedUser } : u));
-    toast({ title: t.dashboard.profileUpdated });
-    setEditingUser(null);
-  };
+    if (!deleteUser) {
+      console.error('❌ deleteUser function not available from useAuth');
+      toast({
+        title: language === 'zh' ? '刪除失敗' : 'Delete Failed',
+        description: language === 'zh' ? '刪除功能不可用' : 'Delete function not available',
+        variant: 'destructive'
+      });
+      return;
+    }
 
-  const handleDeleteUser = () => {
-    if (!userToDelete) return;
-    deleteUser(userToDelete);
-    setUsers(safeUsers.filter(u => u.id !== userToDelete));
-    toast({ title: language === 'zh' ? '用戶已刪除' : 'User Deleted' });
-    setUserToDelete(null);
+    try {
+      console.log('📞 Calling deleteUser function...');
+      const result = await deleteUser(userId);
+      console.log('📬 deleteUser result:', result);
+
+      if (result && result.success) {
+        console.log('✅ Delete successful, updating UI');
+        setUsers(safeUsers.filter(u => u.id !== userId));
+        toast({
+          title: language === 'zh' ? '用戶已刪除' : 'User Deleted',
+          description: result.warning || (language === 'zh' ? '用戶資料已從資料庫刪除' : 'User profile has been removed from database'),
+          duration: 5000
+        });
+      } else {
+        console.error('❌ Delete failed:', result);
+        toast({
+          title: language === 'zh' ? '刪除失敗' : 'Delete Failed',
+          description: result?.error || (language === 'zh' ? '無法刪除用戶' : 'Failed to delete user'),
+          variant: 'destructive',
+          duration: 7000
+        });
+      }
+    } catch (error) {
+      console.error('❌ Delete user error:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: error.message || (language === 'zh' ? '無法刪除用戶' : 'Failed to delete user'),
+        variant: 'destructive'
+      });
+    } finally {
+      console.log('🧹 Cleaning up, closing dialog');
+      setUserToDelete(null);
+    }
   };
 
   const handleViewDetails = (userId) => {
@@ -119,29 +144,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               animate={{ opacity: 1, y: 0 }}
               className="border border-amber-200 rounded-lg p-6 bg-white/50"
             >
-              {editingUser === user.id ? (
-                <div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <Label className="text-amber-800">{language === 'zh' ? '姓名' : 'Name'}</Label>
-                      <Input value={profileData.name} onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))} className="border-amber-200 focus:border-amber-400" />
-                    </div>
-                    <div>
-                      <Label className="text-amber-800">{language === 'zh' ? '電郵' : 'Email'}</Label>
-                      <Input value={profileData.email} onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))} className="border-amber-200 focus:border-amber-400" />
-                    </div>
-                    <div>
-                      <Label className="text-amber-800">{language === 'zh' ? '電話' : 'Phone'}</Label>
-                      <Input value={profileData.phone} onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))} className="border-amber-200 focus:border-amber-400" />
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button onClick={handleProfileUpdate} size="sm">{language === 'zh' ? '保存' : 'Save'}</Button>
-                    <Button onClick={cancelEdit} variant="outline" size="sm">{language === 'zh' ? '取消' : 'Cancel'}</Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-lg font-semibold text-amber-800">
@@ -196,10 +199,6 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
 
                     {adminUser.id !== user.id && (
                       <>
-                        <Button onClick={() => startEdit(user)} variant="outline" size="sm">
-                          <Edit className="w-4 h-4 mr-2" />
-                          {language === 'zh' ? '修改' : 'Modify'}
-                        </Button>
                         <Button onClick={() => onPasswordReset(user.id)} variant="outline" size="sm">
                           <KeyRound className="w-4 h-4 mr-2" />
                           {t.admin.resetPassword}
@@ -213,31 +212,49 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                           {(user.isAdmin || user.is_admin) ? <User className="w-4 h-4 mr-2" /> : <Shield className="w-4 h-4 mr-2" />}
                           {(user.isAdmin || user.is_admin) ? t.admin.demoteToUser : t.admin.promoteToAdmin}
                         </Button>
-                        <AlertDialog open={userToDelete === user.id} onOpenChange={() => setUserToDelete(null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" onClick={() => setUserToDelete(user.id)}>
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              {language === 'zh' ? '刪除' : 'Delete'}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{language === 'zh' ? '確認刪除用戶' : 'Confirm User Deletion'}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {language === 'zh' ? `您確定要永久刪除用戶 ${user.name} 嗎？此操作無法撤銷。` : `Are you sure you want to permanently delete the user ${user.name}? This action cannot be undone.`}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel onClick={() => setUserToDelete(null)}>{language === 'zh' ? '返回' : 'Back'}</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDeleteUser}>{language === 'zh' ? '確認刪除' : 'Confirm Delete'}</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+
+                        {/* Delete Button */}
+                        <Button
+                          onClick={() => {
+                            console.log('🔴 DELETE BUTTON CLICKED for user:', user.id, user.email);
+                            setUserToDelete(user.id);
+                          }}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {language === 'zh' ? '刪除' : 'Delete'}
+                        </Button>
                       </>
                     )}
                   </div>
                 </div>
-              )}
+
+                {/* Delete Confirmation Dialog - Outside the button area */}
+                <AlertDialog open={userToDelete === user.id} onOpenChange={(open) => !open && setUserToDelete(null)}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{language === 'zh' ? '確認刪除用戶' : 'Confirm User Deletion'}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {language === 'zh' ? `您確定要永久刪除用戶 ${user.name || user.full_name || user.email} 嗎？此操作無法撤銷。` : `Are you sure you want to permanently delete the user ${user.name || user.full_name || user.email}? This action cannot be undone.`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => {
+                        console.log('🔵 CANCEL clicked');
+                        setUserToDelete(null);
+                      }}>
+                        {language === 'zh' ? '返回' : 'Back'}
+                      </AlertDialogCancel>
+                      <AlertDialogAction onClick={() => {
+                        console.log('🟢 CONFIRM DELETE clicked for:', user.id);
+                        handleDeleteUser(user.id);
+                      }}>
+                        {language === 'zh' ? '確認刪除' : 'Confirm Delete'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
             </motion.div>
           ))
         )}

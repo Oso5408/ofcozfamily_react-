@@ -170,27 +170,40 @@ export const userService = {
 
   /**
    * Delete user (admin only)
+   * Note: This only deletes the user profile from the database.
+   * The Supabase auth user must be deleted manually from the Supabase dashboard.
    */
   async deleteUser(userId) {
     try {
-      // First delete from auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+      console.log('🗑️ Attempting to delete user:', userId);
 
-      if (authError) {
-        // If auth deletion fails, try to at least delete the profile
-        console.warn('Auth deletion failed, proceeding with profile deletion:', authError);
-      }
-
-      // Delete user profile
+      // Delete user profile from database
       const { error: profileError } = await supabase
         .from('users')
         .delete()
         .eq('id', userId);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('❌ Profile deletion error:', profileError);
 
-      return { success: true };
+        // Check if it's a permission error
+        if (profileError.code === '42501' || profileError.message?.includes('permission')) {
+          return {
+            success: false,
+            error: 'Missing DELETE permission. Please run add-users-delete-policy.sql in Supabase'
+          };
+        }
+
+        throw profileError;
+      }
+
+      console.log('✅ User profile deleted successfully');
+      return {
+        success: true,
+        warning: 'User profile deleted. Note: You may need to manually delete the auth user from Supabase dashboard (Authentication > Users).'
+      };
     } catch (error) {
+      console.error('❌ Delete user error:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },
