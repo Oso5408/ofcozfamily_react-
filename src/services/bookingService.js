@@ -645,22 +645,30 @@ export const bookingService = {
         return { success: false, error: 'This time slot is already booked', conflict: true };
       }
 
+      // Prepare booking data
+      const bookingInsertData = {
+        user_id: bookingData.userId,
+        room_id: bookingData.roomId,
+        start_time: bookingData.startTime,
+        end_time: bookingData.endTime,
+        booking_type: bookingData.bookingType,
+        payment_method: bookingData.paymentMethod,
+        payment_status: 'completed', // Auto-complete for admin bookings
+        total_cost: bookingData.totalCost,
+        status: 'confirmed', // Auto-confirm for admin bookings
+        notes: bookingData.notes,
+      };
+
+      // Add created_by_admin if the column exists (for tracking purposes)
+      // This is optional to support databases that haven't run the migration yet
+      if (adminUserId) {
+        bookingInsertData.created_by_admin = adminUserId;
+      }
+
       // Create booking with auto-confirmed status
       const { data, error } = await supabase
         .from('bookings')
-        .insert({
-          user_id: bookingData.userId,
-          room_id: bookingData.roomId,
-          start_time: bookingData.startTime,
-          end_time: bookingData.endTime,
-          booking_type: bookingData.bookingType,
-          payment_method: bookingData.paymentMethod,
-          payment_status: 'completed', // Auto-complete for admin bookings
-          total_cost: bookingData.totalCost,
-          status: 'confirmed', // Auto-confirm for admin bookings
-          notes: bookingData.notes,
-          created_by_admin: adminUserId, // Track admin who created it
-        })
+        .insert(bookingInsertData)
         .select(`
           *,
           users!bookings_user_id_fkey (id, email, full_name, phone),
