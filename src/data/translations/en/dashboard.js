@@ -76,5 +76,22 @@ export const admin = {
   dailyTimetable: "Daily Timetable",
   dailyBookings: "Daily Bookings",
   backToAdmin: "Back to Admin Panel",
-  noBookingsForDate: "No bookings for this date."
+  noBookingsForDate: "No bookings for this date.",
+  availableDates: {
+    title: "Available Dates",
+    description: "Manage which dates are open for booking",
+    availableDatesList: "Available Dates List",
+    noAvailableDates: "No dates are currently available. Open dates below to allow bookings."
+  },
+  createBooking: "Create Booking",
+  createBookingTitle: "Create Booking on Behalf of User",
+  selectUser: "Select User",
+  searchUsers: "Search users...",
+  noUserFound: "No user found",
+  selectRoom: "Select Room",
+  sendConfirmationEmail: "Send confirmation email",
+  bookingCreatedSuccess: "Booking Created",
+  bookingCreatedDesc: "Booking created successfully for {name}",
+  adminNote: "Admin Note",
+  bookingForUser: "Booking for",
 };

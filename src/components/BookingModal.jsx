@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from '@/components/ui/card';
 import { generateTimeOptions, generateEndTimeOptions, checkDailySlotConflict } from '@/lib/timeUtils';
 import { MultiStepBookingForm } from '@/components/MultiStepBookingForm';
+import { availableDatesService } from '@/services/availableDatesService';
 
 export const BookingModal = ({
   isOpen,
@@ -60,7 +61,23 @@ export const BookingModal = ({
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [purposeError, setPurposeError] = useState(false);
   const [useAccountInfo, setUseAccountInfo] = useState(false);
+  const [availableDateStrings, setAvailableDateStrings] = useState([]);
   const hasRefreshedProfile = useRef(false);
+
+  // Load available dates when modal opens
+  useEffect(() => {
+    const loadAvailableDates = async () => {
+      if (!isOpen || !selectedRoom) return;
+
+      // Pass room ID to get room-specific available dates
+      const result = await availableDatesService.getAvailableDateStrings(selectedRoom.id);
+      if (result.success) {
+        setAvailableDateStrings(result.dateStrings);
+      }
+    };
+
+    loadAvailableDates();
+  }, [isOpen, selectedRoom]);
 
   // Use Day Pass purposes for room 9, regular purposes for other rooms
   const isDayPass = selectedRoom?.id === 9;
@@ -238,9 +255,20 @@ export const BookingModal = ({
 
   const calculateRequiredTokens = () => {
     if (bookingData.bookingType !== 'token' || !bookingData.startTime || !bookingData.endTime) return 0;
-    const start = parseInt(bookingData.startTime.split(':')[0]);
-    const end = parseInt(bookingData.endTime.split(':')[0]);
-    const baseTokens = Math.max(0, end - start);
+
+    // Parse start time
+    const [startHourStr, startMinuteStr] = bookingData.startTime.split(':');
+    const startHour = parseInt(startHourStr);
+    const startMinute = parseInt(startMinuteStr || '0');
+
+    // Parse end time
+    const [endHourStr, endMinuteStr] = bookingData.endTime.split(':');
+    const endHour = parseInt(endHourStr);
+    const endMinute = parseInt(endMinuteStr || '0');
+
+    // Calculate duration in hours (support half hours)
+    const durationHours = (endHour + endMinute / 60) - (startHour + startMinute / 60);
+    const baseTokens = Math.max(0, durationHours);
 
     // Add projector fee if selected (Room C or Room E)
     const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
@@ -263,9 +291,20 @@ export const BookingModal = ({
         basePrice = basePrice * (bookingData.guests || 1);
       }
     } else if (bookingData.rentalType === 'hourly' && bookingData.startTime && bookingData.endTime && selectedRoom.prices.cash.hourly) {
-      const start = parseInt(bookingData.startTime.split(':')[0]);
-      const end = parseInt(bookingData.endTime.split(':')[0]);
-      const hours = Math.max(0, end - start);
+      // Parse start time
+      const [startHourStr, startMinuteStr] = bookingData.startTime.split(':');
+      const startHour = parseInt(startHourStr);
+      const startMinute = parseInt(startMinuteStr || '0');
+
+      // Parse end time
+      const [endHourStr, endMinuteStr] = bookingData.endTime.split(':');
+      const endHour = parseInt(endHourStr);
+      const endMinute = parseInt(endMinuteStr || '0');
+
+      // Calculate duration in hours (support half hours)
+      const durationHours = (endHour + endMinute / 60) - (startHour + startMinute / 60);
+      const hours = Math.max(0, durationHours);
+
       basePrice = hours * selectedRoom.prices.cash.hourly;
     } else if (bookingData.rentalType === 'monthly' && selectedRoom.prices.cash.monthly) {
       basePrice = selectedRoom.prices.cash.monthly;
@@ -382,17 +421,51 @@ export const BookingModal = ({
               <Input
                 type="date"
                 value={bookingData.date || ''}
-                onChange={(e) => setBookingData({
-                  ...bookingData,
-                  date: e.target.value,
-                  // Preserve Day Pass fixed times, reset for other rooms
-                  startTime: isDayPass ? '10:00' : '',
-                  endTime: isDayPass ? '18:30' : ''
-                })}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+
+                  // Check if date is available for booking
+                  if (!availableDateStrings.includes(selectedDate)) {
+                    // Reset date selection
+                    setBookingData({
+                      ...bookingData,
+                      date: '',
+                      startTime: isDayPass ? '10:00' : '',
+                      endTime: isDayPass ? '18:30' : ''
+                    });
+                    // Show error message
+                    alert(language === 'zh'
+                      ? '此日期尚未開放預約，請選擇其他日期或聯絡管理員'
+                      : 'This date is not open for booking. Please select another date or contact admin.');
+                    return;
+                  }
+
+                  setBookingData({
+                    ...bookingData,
+                    date: selectedDate,
+                    // Preserve Day Pass fixed times, reset for other rooms
+                    startTime: isDayPass ? '10:00' : '',
+                    endTime: isDayPass ? '18:30' : ''
+                  });
+                }}
                 className="border-amber-200 focus:border-amber-400"
                 min={new Date().toISOString().split('T')[0]}
                 max={getMaxDate()}
               />
+              {availableDateStrings.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">
+                  {language === 'zh'
+                    ? '⚠️ 目前沒有開放的日期。請聯絡管理員開放預約日期。'
+                    : '⚠️ No dates are currently available. Please contact admin to open booking dates.'}
+                </p>
+              )}
+              {availableDateStrings.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {language === 'zh'
+                    ? `目前有 ${availableDateStrings.length} 個日期可供預約`
+                    : `${availableDateStrings.length} dates currently available for booking`}
+                </p>
+              )}
             </div>
             
             <Tabs value={bookingData.bookingType} onValueChange={(val) => setBookingData(prev => ({
@@ -510,7 +583,10 @@ export const BookingModal = ({
                         e.preventDefault();
                       }}>
                         {console.log('📋 Token Time Options Available:', timeOptions.length)}
-                        {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                        {timeOptions.filter(time => {
+                          const [hour, minute] = time.split(':').map(Number);
+                          return hour < 22 || (hour === 22 && minute === 0);
+                        }).map(time => (
                           <SelectItem key={time} value={time}>{time}</SelectItem>
                         ))}
                       </SelectContent>
@@ -601,7 +677,10 @@ export const BookingModal = ({
                             e.preventDefault();
                           }}>
                             {console.log('📋 Cash Time Options Available:', timeOptions.length, timeOptions)}
-                            {timeOptions.filter(time => parseInt(time.split(':')[0]) < 22).map(time => (
+                            {timeOptions.filter(time => {
+                              const [hour, minute] = time.split(':').map(Number);
+                              return hour < 22 || (hour === 22 && minute === 0);
+                            }).map(time => (
                               <SelectItem key={time} value={time}>{time}</SelectItem>
                             ))}
                           </SelectContent>

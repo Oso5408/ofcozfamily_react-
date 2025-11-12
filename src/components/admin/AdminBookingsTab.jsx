@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash, DollarSign, Eye, FileText, CalendarPlus } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash, DollarSign, Eye, FileText, CalendarPlus, Plus } from 'lucide-react';
 import { EditBookingModal } from './EditBookingModal';
 import { PaymentConfirmModal } from './PaymentConfirmModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
+import { AdminCreateBookingModal } from './AdminCreateBookingModal';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { generateReceiptNumber } from '@/lib/utils';
-import { bookingService, emailService } from '@/services';
+import { bookingService, emailService, roomService } from '@/services';
 import { openGoogleCalendar } from '@/lib/calendarUtils';
 import {
   AlertDialog,
@@ -126,9 +127,22 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
   const [specificDate, setSpecificDate] = useState('');
+  const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
+  const [rooms, setRooms] = useState([]);
 
   // Normalize all bookings
   const normalizedBookings = bookings.map(normalizeBooking);
+
+  // Load rooms on component mount
+  useEffect(() => {
+    const loadRooms = async () => {
+      const result = await roomService.getRooms(true); // Include hidden rooms for admin
+      if (result.success) {
+        setRooms(result.rooms);
+      }
+    };
+    loadRooms();
+  }, []);
 
   const handleAddToCalendar = (booking) => {
     try {
@@ -499,11 +513,29 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   // Apply date filtering
   const filteredByDateBookings = normalizedBookings.filter(matchesDateFilter);
 
+  const handleBookingCreated = (newBooking) => {
+    // Add the new booking to the list
+    setBookings([newBooking, ...bookings]);
+    toast({
+      title: t.admin.bookingCreatedSuccess,
+      description: language === 'zh' ? '預約已成功建立' : 'Booking created successfully',
+    });
+  };
+
   return (
     <div>
-      <h2 className="text-2xl font-bold text-amber-800 mb-6">
-        {filterTitles[filterStatus]}
-      </h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-amber-800">
+          {filterTitles[filterStatus]}
+        </h2>
+        <Button
+          onClick={() => setShowCreateBookingModal(true)}
+          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          {t.admin.createBooking}
+        </Button>
+      </div>
 
       {/* Date Filter Buttons */}
       <div className="mb-6 flex flex-wrap gap-2">
@@ -815,6 +847,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         }}
         booking={viewingReceipt}
         onConfirm={handleConfirmPaymentFromReceipt}
+      />
+      <AdminCreateBookingModal
+        isOpen={showCreateBookingModal}
+        onClose={() => setShowCreateBookingModal(false)}
+        users={users}
+        rooms={rooms}
+        onBookingCreated={handleBookingCreated}
       />
     </div>
   );

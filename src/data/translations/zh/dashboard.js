@@ -76,5 +76,22 @@ export const admin = {
   dailyTimetable: "每日時間表",
   dailyBookings: "每日預約",
   backToAdmin: "返回管理後台",
-  noBookingsForDate: "該日無預約。"
+  noBookingsForDate: "該日無預約。",
+  availableDates: {
+    title: "開放日期",
+    description: "管理哪些日期可供預約",
+    availableDatesList: "已開放日期列表",
+    noAvailableDates: "目前沒有開放的日期。請在下方開放日期以允許預約。"
+  },
+  createBooking: "建立預約",
+  createBookingTitle: "代用戶建立預約",
+  selectUser: "選擇用戶",
+  searchUsers: "搜尋用戶...",
+  noUserFound: "找不到用戶",
+  selectRoom: "選擇房間",
+  sendConfirmationEmail: "發送確認郵件",
+  bookingCreatedSuccess: "預約已建立",
+  bookingCreatedDesc: "已成功為 {name} 建立預約",
+  adminNote: "管理員備註",
+  bookingForUser: "為用戶預約",
 };

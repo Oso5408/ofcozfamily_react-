@@ -1,4 +1,5 @@
 import { supabase, handleSupabaseError } from '@/lib/supabase';
+import { availableDatesService } from './availableDatesService';
 
 /**
  * Booking Service
@@ -11,18 +12,34 @@ export const bookingService = {
    */
   async createBooking(bookingData) {
     try {
-      // Double-check availability before insert to minimize race conditions
-      const availabilityCheck = await this.checkAvailability(
+      // Check if date is open for booking for this specific room
+      const dateString = new Date(bookingData.startTime).toISOString().split('T')[0];
+      const dateCheck = await availableDatesService.isDateAvailableForRoom(dateString, bookingData.roomId);
+
+      if (!dateCheck.success) {
+        return { success: false, error: 'Unable to verify date availability' };
+      }
+
+      if (!dateCheck.isAvailable) {
+        return {
+          success: false,
+          error: 'This date is not open for booking for this room. Please contact admin to open this date.',
+          unavailable: true
+        };
+      }
+
+      // Double-check room availability before insert to minimize race conditions
+      const roomAvailabilityCheck = await this.checkAvailability(
         bookingData.roomId,
         bookingData.startTime,
         bookingData.endTime
       );
 
-      if (!availabilityCheck.success) {
+      if (!roomAvailabilityCheck.success) {
         return { success: false, error: 'Unable to verify room availability' };
       }
 
-      if (!availabilityCheck.available) {
+      if (!roomAvailabilityCheck.available) {
         return { success: false, error: 'This time slot has just been booked by another user', conflict: true };
       }
 
@@ -586,6 +603,89 @@ export const bookingService = {
       return { success: true, booking: data };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Admin create booking on behalf of user
+   * Auto-confirms booking without payment verification
+   */
+  async adminCreateBooking(bookingData, adminUserId) {
+    try {
+      console.log('🔧 Admin creating booking:', bookingData);
+
+      // Check if date is open for booking for this specific room
+      const dateString = new Date(bookingData.startTime).toISOString().split('T')[0];
+      const dateCheck = await availableDatesService.isDateAvailableForRoom(dateString, bookingData.roomId);
+
+      if (!dateCheck.success) {
+        return { success: false, error: 'Unable to verify date availability' };
+      }
+
+      if (!dateCheck.isAvailable) {
+        return {
+          success: false,
+          error: 'This date is not open for booking for this room.',
+          unavailable: true
+        };
+      }
+
+      // Check room availability
+      const roomAvailabilityCheck = await this.checkAvailability(
+        bookingData.roomId,
+        bookingData.startTime,
+        bookingData.endTime
+      );
+
+      if (!roomAvailabilityCheck.success) {
+        return { success: false, error: 'Unable to verify room availability' };
+      }
+
+      if (!roomAvailabilityCheck.available) {
+        return { success: false, error: 'This time slot is already booked', conflict: true };
+      }
+
+      // Create booking with auto-confirmed status
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
+          user_id: bookingData.userId,
+          room_id: bookingData.roomId,
+          start_time: bookingData.startTime,
+          end_time: bookingData.endTime,
+          booking_type: bookingData.bookingType,
+          payment_method: bookingData.paymentMethod,
+          payment_status: 'completed', // Auto-complete for admin bookings
+          total_cost: bookingData.totalCost,
+          status: 'confirmed', // Auto-confirm for admin bookings
+          notes: bookingData.notes,
+          created_by_admin: adminUserId, // Track admin who created it
+        })
+        .select(`
+          *,
+          users!bookings_user_id_fkey (id, email, full_name, phone),
+          rooms (*)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Admin booking created successfully');
+      return { success: true, booking: data };
+    } catch (error) {
+      const errorMessage = handleSupabaseError(error);
+      console.error('❌ Admin create booking error:', errorMessage);
+
+      // Check for booking conflict
+      if (error.code === '23P01' || error.message?.includes('no_overlapping_bookings')) {
+        return {
+          success: false,
+          error: 'This time slot is already booked. Please select a different time.',
+          conflict: true
+        };
+      }
+
+      return { success: false, error: errorMessage };
     }
   },
 };

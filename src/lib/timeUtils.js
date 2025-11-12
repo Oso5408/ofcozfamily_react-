@@ -53,26 +53,31 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
 
     const options = [];
     for (let hour = 10; hour <= 22; hour++) {
-        const time = `${hour.toString().padStart(2, '0')}:00`;
-        const checkTime = new Date(`${date}T${time}:00`);
+        for (let minute = 0; minute < 60; minute += 30) {
+            // Skip 22:30 - venue closes at 22:00, last booking can only be until 22:00
+            if (hour === 22 && minute === 30) continue;
 
-        // Check if we can book at least 1 hour from this start time
-        const checkEndTime = new Date(checkTime);
-        checkEndTime.setHours(checkEndTime.getHours() + 1);
+            const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            const checkTime = new Date(`${date}T${time}:00`);
 
-        let isBooked = false;
-        for (const slot of bookedSlots) {
-            // Use proper overlap detection: (start1 < end2) && (end1 > start2)
-            // Proposed booking: [checkTime, checkEndTime]
-            // Existing booking: [slot.start, slot.end]
-            if (checkTime < slot.end && checkEndTime > slot.start) {
-                isBooked = true;
-                break;
+            // Check if we can book at least 30 minutes from this start time
+            const checkEndTime = new Date(checkTime);
+            checkEndTime.setMinutes(checkEndTime.getMinutes() + 30);
+
+            let isBooked = false;
+            for (const slot of bookedSlots) {
+                // Use proper overlap detection: (start1 < end2) && (end1 > start2)
+                // Proposed booking: [checkTime, checkEndTime]
+                // Existing booking: [slot.start, slot.end]
+                if (checkTime < slot.end && checkEndTime > slot.start) {
+                    isBooked = true;
+                    break;
+                }
             }
-        }
 
-        if (!isBooked) {
-            options.push(time);
+            if (!isBooked) {
+                options.push(time);
+            }
         }
     }
     return options;
@@ -86,7 +91,11 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
 const generateAllTimeOptions = () => {
   const options = [];
   for (let hour = 10; hour <= 22; hour++) {
-    options.push(`${hour.toString().padStart(2, '0')}:00`);
+    for (let minute = 0; minute < 60; minute += 30) {
+      // Skip 22:30 - venue closes at 22:00
+      if (hour === 22 && minute === 30) continue;
+      options.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+    }
   }
   return options;
 };
@@ -165,15 +174,26 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
     }
 
     const options = [];
-    const startHour = parseInt(startTime.split(':')[0]);
+    const [startHourStr, startMinuteStr] = startTime.split(':');
+    const startHour = parseInt(startHourStr);
+    const startMinute = parseInt(startMinuteStr);
 
-    // Generate end time options from start+1 hour to either:
-    // - The next booking start time, OR
-    // - 22:00 (closing time)
-    const maxHour = maxEndTime ? maxEndTime.getHours() : 22;
+    // Convert start time to total minutes from midnight
+    const startTotalMinutes = startHour * 60 + startMinute;
 
-    for (let hour = startHour + 1; hour <= maxHour; hour++) {
-      const time = `${hour.toString().padStart(2, '0')}:00`;
+    // Determine max end time (either next booking or closing time 22:00)
+    let maxTotalMinutes;
+    if (maxEndTime) {
+      maxTotalMinutes = maxEndTime.getHours() * 60 + maxEndTime.getMinutes();
+    } else {
+      maxTotalMinutes = 22 * 60; // 22:00
+    }
+
+    // Generate end time options in 30-minute increments from start+30min to max
+    for (let totalMinutes = startTotalMinutes + 30; totalMinutes <= maxTotalMinutes; totalMinutes += 30) {
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       options.push(time);
     }
 
@@ -187,9 +207,16 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
 // Helper function to generate all possible end times after start time
 const generateAllEndTimeOptions = (startTime) => {
   const options = [];
-  const startHour = parseInt(startTime.split(':')[0]);
-  for (let hour = startHour + 1; hour <= 22; hour++) {
-    options.push(`${hour.toString().padStart(2, '0')}:00`);
+  const [startHourStr, startMinuteStr] = startTime.split(':');
+  const startHour = parseInt(startHourStr);
+  const startMinute = parseInt(startMinuteStr || '0');
+  const startTotalMinutes = startHour * 60 + startMinute;
+
+  // Generate all 30-minute slots from start+30min to 22:00
+  for (let totalMinutes = startTotalMinutes + 30; totalMinutes <= 22 * 60; totalMinutes += 30) {
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    options.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
   }
   return options;
 };
