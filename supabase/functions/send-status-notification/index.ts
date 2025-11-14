@@ -1,6 +1,6 @@
-// Supabase Edge Function to send booking status change notifications via SMTP
+// Supabase Edge Function to send booking status change notifications via Resend
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { sendEmail } from "../send-booking-confirmation/smtp-client.ts"
+import { sendEmail } from "./resend-client.ts"
 
 interface StatusNotificationRequest {
   to: string

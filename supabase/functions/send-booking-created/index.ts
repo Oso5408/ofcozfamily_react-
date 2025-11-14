@@ -1,6 +1,6 @@
-// Supabase Edge Function to send booking created notification via SMTP
+// Supabase Edge Function to send booking created notification via Resend
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { sendEmail } from "./smtp-client.ts"
+import { sendEmail } from "./resend-client.ts"
 
 interface BookingCreatedRequest {
   to: string
@@ -225,7 +225,7 @@ const getEmailHtml = (language: string, booking: any, roomNameTranslated: string
   }
 }
 
-async function sendEmailViaSMTP(to: string, subject: string, html: string) {
+async function sendEmailViaResend(to: string, subject: string, html: string) {
   return await sendEmail({
     to,
     subject,
@@ -255,7 +255,7 @@ serve(async (req) => {
     const html = getEmailHtml(language, booking, roomNameTranslated)
 
     // Send email
-    const result = await sendEmailViaSMTP(to, subject, html)
+    const result = await sendEmailViaResend(to, subject, html)
 
     return new Response(
       JSON.stringify(result),

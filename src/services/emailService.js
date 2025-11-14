@@ -57,6 +57,19 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        // See: https://github.com/supabase/functions-js/issues/45#issuecomment-2068191215
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
         return { success: false, error: error.message };
       }
 
@@ -121,6 +134,18 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
         return { success: false, error: error.message };
       }
 
@@ -177,6 +202,19 @@ export const emailService = {
       }
       userName = userName || 'Valued Customer';
 
+      // Get room name safely
+      const roomName = booking.room?.name || booking.rooms?.name || 'Room';
+
+      // Get translated room name safely
+      let roomNameTranslated = roomName;
+      try {
+        if (t && t.rooms && t.rooms.roomNames && roomName) {
+          roomNameTranslated = t.rooms.roomNames[roomName] || roomName;
+        }
+      } catch (e) {
+        console.warn('Could not translate room name, using original:', roomName);
+      }
+
       const emailData = {
         to: userEmail,
         language: language,
@@ -185,13 +223,13 @@ export const emailService = {
           name: userName,
           receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
           room: {
-            name: booking.room?.name || booking.rooms?.name || 'Room',
+            name: roomName,
           },
           date: booking.date,
           startTime: booking.startTime,
           endTime: booking.endTime,
         },
-        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name || booking.rooms?.name] || booking.room?.name || booking.rooms?.name || 'Room',
+        roomNameTranslated: roomNameTranslated,
       };
 
       console.log('📧 Sending receipt received email to:', emailData.to);
@@ -202,6 +240,18 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
         return { success: false, error: error.message || String(error) };
       }
 
@@ -263,6 +313,19 @@ export const emailService = {
       }
       userName = userName || 'Valued Customer';
 
+      // Get room name safely
+      const roomName = booking.room?.name || booking.rooms?.name || 'Room';
+
+      // Get translated room name safely
+      let roomNameTranslated = roomName;
+      try {
+        if (t && t.rooms && t.rooms.roomNames && roomName) {
+          roomNameTranslated = t.rooms.roomNames[roomName] || roomName;
+        }
+      } catch (e) {
+        console.warn('Could not translate room name, using original:', roomName);
+      }
+
       const emailData = {
         to: userEmail,
         language: language,
@@ -271,14 +334,14 @@ export const emailService = {
           name: userName,
           receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
           room: {
-            name: booking.room?.name || booking.rooms?.name || 'Room',
+            name: roomName,
           },
           date: booking.date,
           startTime: booking.startTime,
           endTime: booking.endTime,
           confirmedAt: booking.payment_confirmed_at || new Date().toISOString(),
         },
-        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name || booking.rooms?.name] || booking.room?.name || booking.rooms?.name || 'Room',
+        roomNameTranslated: roomNameTranslated,
       };
 
       console.log('📧 Sending payment confirmed email to:', emailData.to);
@@ -289,6 +352,18 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
         return { success: false, error: error.message || String(error) };
       }
 
@@ -351,6 +426,18 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
         return { success: false, error: error.message };
       }
 

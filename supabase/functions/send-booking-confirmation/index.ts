@@ -1,6 +1,6 @@
-// Supabase Edge Function to send booking confirmation emails via SMTP
+// Supabase Edge Function to send booking confirmation emails via Resend
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { sendEmail } from "./smtp-client.ts"
+import { sendEmail } from "./resend-client.ts"
 
 interface BookingConfirmationRequest {
   to: string
