@@ -1,8 +1,28 @@
 import { bookingService } from '@/services';
 
 /**
+ * Get current time in Hong Kong timezone (UTC+8)
+ * @returns {Date} Current time in Hong Kong
+ */
+const getHongKongTime = () => {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
+};
+
+/**
+ * Check if a date string (YYYY-MM-DD) is today in Hong Kong timezone
+ * @param {string} dateString - Date string in YYYY-MM-DD format
+ * @returns {boolean} True if the date is today in Hong Kong
+ */
+const isToday = (dateString) => {
+  const hkNow = getHongKongTime();
+  const todayString = hkNow.toISOString().split('T')[0]; // YYYY-MM-DD
+  return dateString === todayString;
+};
+
+/**
  * Generate available time options for a given date and room
  * Now fetches from Supabase instead of localStorage
+ * Filters out past time slots on current day (Hong Kong timezone UTC+8)
  */
 export const generateTimeOptions = async (date, roomId, bookingIdToExclude = null) => {
   if (!date) return [];
@@ -46,11 +66,31 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
         end: new Date(b.end_time),
     }));
 
+    // Check if the selected date is today (in Hong Kong timezone)
+    const isTodayInHK = isToday(date);
+    let currentTotalMinutes = 0;
+
+    if (isTodayInHK) {
+      const hkNow = getHongKongTime();
+      const currentHour = hkNow.getHours();
+      const currentMinute = hkNow.getMinutes();
+      // Add 30-minute buffer to prevent last-second bookings
+      currentTotalMinutes = currentHour * 60 + currentMinute + 30;
+    }
+
     const options = [];
     for (let hour = 10; hour <= 22; hour++) {
         for (let minute = 0; minute < 60; minute += 30) {
             // Skip 22:30 - venue closes at 22:00, last booking can only be until 22:00
             if (hour === 22 && minute === 30) continue;
+
+            // Skip past time slots if booking for today
+            if (isTodayInHK) {
+              const slotTotalMinutes = hour * 60 + minute;
+              if (slotTotalMinutes <= currentTotalMinutes) {
+                continue; // Skip this past time slot
+              }
+            }
 
             const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
             const checkTime = new Date(`${date}T${time}:00`);
