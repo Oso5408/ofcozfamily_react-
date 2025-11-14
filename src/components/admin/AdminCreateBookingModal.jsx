@@ -50,6 +50,7 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [availableDateStrings, setAvailableDateStrings] = useState([]);
   const [purposeError, setPurposeError] = useState(false);
+  const [timeDurationError, setTimeDurationError] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
 
   const businessPurposes = ["教學", "心理及催眠", "會議", "工作坊", "溫習", "動物傳心", "古法術枚", "直傳靈氣", "其他"];
@@ -162,6 +163,16 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
     return basePrice + projectorFee;
   };
 
+  // Calculate duration in minutes
+  const calculateDurationInMinutes = (startTime, endTime) => {
+    if (!startTime || !endTime) return 0;
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    const startTotalMinutes = startHour * 60 + startMin;
+    const endTotalMinutes = endHour * 60 + endMin;
+    return endTotalMinutes - startTotalMinutes;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -182,6 +193,19 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
       });
       return;
     }
+
+    // Validate minimum 1 hour duration (60 minutes)
+    const duration = calculateDurationInMinutes(bookingData.startTime, bookingData.endTime);
+    if (duration < 60) {
+      setTimeDurationError(true);
+      toast({
+        title: language === 'zh' ? '預約時間不足' : 'Booking duration too short',
+        description: language === 'zh' ? '最少預約時間為 1 小時' : 'Minimum booking duration is 1 hour',
+        variant: 'destructive'
+      });
+      return;
+    }
+    setTimeDurationError(false);
 
     // Validate purpose
     if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
@@ -431,7 +455,10 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
               <Label className="text-amber-800">{t.booking.startTime} *</Label>
               <Select
                 value={bookingData.startTime}
-                onValueChange={(value) => setBookingData({ ...bookingData, startTime: value, endTime: '' })}
+                onValueChange={(value) => {
+                  setBookingData({ ...bookingData, startTime: value, endTime: '' });
+                  setTimeDurationError(false); // Clear error when time changes
+                }}
               >
                 <SelectTrigger disabled={!bookingData.date} className="border-amber-200">
                   <SelectValue placeholder={bookingData.date ? t.booking.selectTime : (language === 'zh' ? '請先選擇日期' : 'Select date first')} />
@@ -450,7 +477,10 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
               <Label className="text-amber-800">{t.booking.endTime} *</Label>
               <Select
                 value={bookingData.endTime}
-                onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}
+                onValueChange={(value) => {
+                  setBookingData({ ...bookingData, endTime: value });
+                  setTimeDurationError(false); // Clear error when time changes
+                }}
               >
                 <SelectTrigger disabled={!bookingData.startTime} className="border-amber-200">
                   <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Select start time first')} />
@@ -463,6 +493,17 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
               </Select>
             </div>
           </div>
+
+          {/* Minimum duration error message */}
+          {timeDurationError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 font-medium">
+                {language === 'zh'
+                  ? '⚠️ 最少預約時間為 1 小時'
+                  : '⚠️ Minimum booking duration is 1 hour'}
+              </p>
+            </div>
+          )}
 
           {/* Payment Method */}
           <div>

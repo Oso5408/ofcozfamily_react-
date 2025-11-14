@@ -280,6 +280,15 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                   </p>
                 </div>
               )}
+
+              {booking.admin_notes && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    <strong>{language === 'zh' ? '📝 管理員備註：' : '📝 Admin Notes: '}</strong>
+                    {booking.admin_notes}
+                  </p>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>

@@ -21,8 +21,26 @@ export const EditBookingModal = ({ isOpen, onClose, booking, onSave }) => {
   const [timeOptions, setTimeOptions] = useState([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
 
+  // Convert DD/MM/YYYY to YYYY-MM-DD for date input
+  const convertDateForInput = (dateString) => {
+    if (!dateString) return '';
+    // If already in YYYY-MM-DD format, return as is
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
+    // Convert DD/MM/YYYY to YYYY-MM-DD
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+    }
+    return dateString;
+  };
+
   useEffect(() => {
-    setEditedBooking(booking);
+    // Convert date format for the input field
+    const bookingWithConvertedDate = {
+      ...booking,
+      date: convertDateForInput(booking?.date)
+    };
+    setEditedBooking(bookingWithConvertedDate);
   }, [booking]);
 
   // Fetch time options when date or room changes
@@ -153,6 +171,20 @@ export const EditBookingModal = ({ isOpen, onClose, booking, onSave }) => {
                 )}
               </select>
             </div>
+          </div>
+
+          <div>
+            <Label className="text-amber-800">{language === 'zh' ? '管理員備註' : 'Admin Notes'}</Label>
+            <textarea
+              value={editedBooking.admin_notes || ''}
+              onChange={(e) => setEditedBooking(prev => ({ ...prev, admin_notes: e.target.value }))}
+              placeholder={language === 'zh' ? '添加管理員備註（用戶可見）...' : 'Add admin notes (visible to user)...'}
+              className="w-full p-2 border border-amber-200 rounded-md focus:border-amber-400 focus:outline-none bg-white min-h-[80px] resize-y"
+              rows={3}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {language === 'zh' ? '此備註將對用戶可見' : 'This note will be visible to the user'}
+            </p>
           </div>
         </div>
 

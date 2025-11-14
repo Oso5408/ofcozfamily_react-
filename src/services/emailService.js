@@ -8,6 +8,72 @@ import { translations } from '@/data/translations';
 
 export const emailService = {
   /**
+   * Send booking created email when user creates a new booking
+   * @param {Object} booking - The booking object with user and room details
+   * @param {string} language - Language code ('en' or 'zh')
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async sendBookingCreatedEmail(booking, language = 'zh') {
+    try {
+      const t = translations[language];
+
+      // Ensure booking has all required fields
+      if (!booking.email) {
+        console.error('Cannot send email: booking email is missing');
+        return { success: false, error: 'Booking email is missing' };
+      }
+
+      if (!booking.room) {
+        console.error('Cannot send email: booking room is missing');
+        return { success: false, error: 'Booking room is missing' };
+      }
+
+      // Prepare booking data for email template
+      const emailData = {
+        to: booking.email,
+        language: language,
+        booking: {
+          name: booking.name || booking.users?.full_name || 'Valued Customer',
+          receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
+          room: {
+            name: booking.room.name,
+          },
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          paymentMethod: booking.paymentMethod || 'cash',
+          totalCost: booking.totalCost || booking.total_cost || 0,
+          specialRequests: booking.specialRequests || booking.special_requests || '',
+        },
+        roomNameTranslated: t.rooms.roomNames[booking.room.name] || booking.room.name,
+      };
+
+      console.log('📧 Sending booking created email to:', emailData.to);
+
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('send-booking-created', {
+        body: emailData,
+      });
+
+      if (error) {
+        console.error('❌ Error sending email:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data.success) {
+        console.error('❌ Email sending failed:', data.error);
+        return { success: false, error: data.error };
+      }
+
+      console.log('✅ Booking created email sent successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Exception in sendBookingCreatedEmail:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send booking confirmation email when status changes to 'confirmed'
    * @param {Object} booking - The booking object with user and room details
    * @param {string} language - Language code ('en' or 'zh')
@@ -81,26 +147,51 @@ export const emailService = {
     try {
       const t = translations[language];
 
-      if (!booking.email) {
-        console.error('Cannot send email: booking email is missing');
+      // Extract email from various possible locations
+      let userEmail = booking.email || booking.users?.email;
+
+      // If still not found, try to parse from notes JSON
+      if (!userEmail && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userEmail = notes.email;
+        } catch (e) {
+          console.warn('Could not parse booking notes for email');
+        }
+      }
+
+      if (!userEmail) {
+        console.error('Cannot send email: booking email is missing', { booking });
         return { success: false, error: 'Booking email is missing' };
       }
 
+      // Extract name from various possible locations
+      let userName = booking.name || booking.users?.full_name || booking.users?.name;
+      if (!userName && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userName = notes.name;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      userName = userName || 'Valued Customer';
+
       const emailData = {
-        to: booking.email,
+        to: userEmail,
         language: language,
         type: 'receiptReceived',
         booking: {
-          name: booking.name || booking.users?.full_name || 'Valued Customer',
+          name: userName,
           receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
           room: {
-            name: booking.room?.name || 'Room',
+            name: booking.room?.name || booking.rooms?.name || 'Room',
           },
           date: booking.date,
           startTime: booking.startTime,
           endTime: booking.endTime,
         },
-        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name] || booking.room?.name || 'Room',
+        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name || booking.rooms?.name] || booking.room?.name || booking.rooms?.name || 'Room',
       };
 
       console.log('📧 Sending receipt received email to:', emailData.to);
@@ -111,12 +202,17 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: error.message || String(error) };
       }
 
-      if (!data?.success) {
-        console.error('❌ Email sending failed:', data?.error);
-        return { success: false, error: data?.error };
+      if (!data) {
+        console.error('❌ Email sending failed: No response data');
+        return { success: false, error: 'No response from email service' };
+      }
+
+      if (!data.success) {
+        console.error('❌ Email sending failed:', data.error);
+        return { success: false, error: data.error || 'Email sending failed' };
       }
 
       console.log('✅ Receipt received email sent successfully');
@@ -137,27 +233,52 @@ export const emailService = {
     try {
       const t = translations[language];
 
-      if (!booking.email) {
-        console.error('Cannot send email: booking email is missing');
+      // Extract email from various possible locations
+      let userEmail = booking.email || booking.users?.email;
+
+      // If still not found, try to parse from notes JSON
+      if (!userEmail && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userEmail = notes.email;
+        } catch (e) {
+          console.warn('Could not parse booking notes for email');
+        }
+      }
+
+      if (!userEmail) {
+        console.error('Cannot send email: booking email is missing', { booking });
         return { success: false, error: 'Booking email is missing' };
       }
 
+      // Extract name from various possible locations
+      let userName = booking.name || booking.users?.full_name || booking.users?.name;
+      if (!userName && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userName = notes.name;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      userName = userName || 'Valued Customer';
+
       const emailData = {
-        to: booking.email,
+        to: userEmail,
         language: language,
         type: 'paymentConfirmed',
         booking: {
-          name: booking.name || booking.users?.full_name || 'Valued Customer',
+          name: userName,
           receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
           room: {
-            name: booking.room?.name || 'Room',
+            name: booking.room?.name || booking.rooms?.name || 'Room',
           },
           date: booking.date,
           startTime: booking.startTime,
           endTime: booking.endTime,
           confirmedAt: booking.payment_confirmed_at || new Date().toISOString(),
         },
-        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name] || booking.room?.name || 'Room',
+        roomNameTranslated: t.rooms?.roomNames?.[booking.room?.name || booking.rooms?.name] || booking.room?.name || booking.rooms?.name || 'Room',
       };
 
       console.log('📧 Sending payment confirmed email to:', emailData.to);
@@ -168,12 +289,17 @@ export const emailService = {
 
       if (error) {
         console.error('❌ Error sending email:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: error.message || String(error) };
       }
 
-      if (!data?.success) {
-        console.error('❌ Email sending failed:', data?.error);
-        return { success: false, error: data?.error };
+      if (!data) {
+        console.error('❌ Email sending failed: No response data');
+        return { success: false, error: 'No response from email service' };
+      }
+
+      if (!data.success) {
+        console.error('❌ Email sending failed:', data.error);
+        return { success: false, error: data.error || 'Email sending failed' };
       }
 
       console.log('✅ Payment confirmed email sent successfully');

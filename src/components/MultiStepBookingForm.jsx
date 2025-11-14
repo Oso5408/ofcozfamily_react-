@@ -35,6 +35,7 @@ export const MultiStepBookingForm = ({
   const [endTimeOptions, setEndTimeOptions] = useState([]);
   const [loadingEndTimes, setLoadingEndTimes] = useState(false);
   const [useAccountInfo, setUseAccountInfo] = useState(false);
+  const [timeDurationError, setTimeDurationError] = useState(false);
 
   // Check if this is Day Pass (always daily rental, no tabs needed)
   const isDayPass = selectedRoom?.id === 9;
@@ -154,6 +155,16 @@ export const MultiStepBookingForm = ({
     }
   };
 
+  // Calculate duration in minutes
+  const calculateDurationInMinutes = (startTime, endTime) => {
+    if (!startTime || !endTime) return 0;
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    const startTotalMinutes = startHour * 60 + startMin;
+    const endTotalMinutes = endHour * 60 + endMin;
+    return endTotalMinutes - startTotalMinutes;
+  };
+
   const validateStep1 = () => {
     if (!bookingData.name || !bookingData.email || !bookingData.phone || !bookingData.date) {
       return false;
@@ -163,6 +174,14 @@ export const MultiStepBookingForm = ({
     if (!bookingData.startTime || !bookingData.endTime) {
       return false;
     }
+
+    // Validate minimum 1 hour duration (60 minutes)
+    const duration = calculateDurationInMinutes(bookingData.startTime, bookingData.endTime);
+    if (duration < 60) {
+      setTimeDurationError(true);
+      return false;
+    }
+    setTimeDurationError(false);
 
     if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
       return false;
@@ -363,6 +382,7 @@ export const MultiStepBookingForm = ({
             value={bookingData.startTime || ''}
             onValueChange={(value) => {
               setBookingData({ ...bookingData, startTime: value, endTime: '' });
+              setTimeDurationError(false); // Clear error when time changes
             }}
           >
             <SelectTrigger disabled={!bookingData.date}>
@@ -377,7 +397,10 @@ export const MultiStepBookingForm = ({
         </div>
         <div>
           <Label className="text-amber-800">{t.booking.endTime}</Label>
-          <Select value={bookingData.endTime || ''} onValueChange={(value) => setBookingData({ ...bookingData, endTime: value })}>
+          <Select value={bookingData.endTime || ''} onValueChange={(value) => {
+            setBookingData({ ...bookingData, endTime: value });
+            setTimeDurationError(false); // Clear error when time changes
+          }}>
             <SelectTrigger disabled={!bookingData.startTime}>
               <SelectValue placeholder={bookingData.startTime ? t.booking.selectTime : (language === 'zh' ? '請先選擇開始時間' : 'Please select start time first')} />
             </SelectTrigger>
@@ -393,6 +416,17 @@ export const MultiStepBookingForm = ({
           </Select>
         </div>
       </div>
+      )}
+
+      {/* Minimum duration error message */}
+      {timeDurationError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-700 font-medium">
+            {language === 'zh'
+              ? '⚠️ 最少預約時間為 1 小時'
+              : '⚠️ Minimum booking duration is 1 hour'}
+          </p>
+        </div>
       )}
 
       <div>

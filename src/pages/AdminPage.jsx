@@ -8,12 +8,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Users, Calendar, List, Bell, Star, Home } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, List, Bell, Star, Home, Ban } from 'lucide-react';
 import { AdminDashboardStats } from '@/components/admin/AdminDashboardStats';
 import { AdminBookingsTab } from '@/components/admin/AdminBookingsTab';
 import { AdminUsersTab } from '@/components/admin/AdminUsersTab';
 import { AdminRoomsTab } from '@/components/admin/AdminRoomsTab';
 import { BookingCalendar } from '@/components/admin/BookingCalendar';
+import { AvailableDatesTab } from '@/components/admin/AvailableDatesTab';
 import { ReviewsTab } from '@/components/dashboard/ReviewsTab';
 import { roomsData as initialRoomsData } from '@/data/roomsData';
 import { generatePassword } from '@/lib/utils';
@@ -393,6 +394,17 @@ export const AdminPage = () => {
                 <Home className="w-4 h-4 mr-2" />
                 {language === 'zh' ? '房間管理' : 'Rooms'}
               </Button>
+              <Button
+                onClick={() => setActiveTab('available-dates')}
+                variant={activeTab === 'available-dates' ? 'default' : 'outline'}
+                className={activeTab === 'available-dates'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
+                  : 'border-amber-300 text-amber-700'
+                }
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                {language === 'zh' ? '開放日期' : 'Available Dates'}
+              </Button>
             </div>
 
             <Card className="p-8 glass-effect cat-shadow border-amber-200">
@@ -410,6 +422,9 @@ export const AdminPage = () => {
               )}
               {activeTab === 'rooms' && (
                 <AdminRoomsTab rooms={rooms} onRoomUpdate={handleRoomUpdate} />
+              )}
+              {activeTab === 'available-dates' && (
+                <AvailableDatesTab />
               )}
             </Card>
           </motion.div>

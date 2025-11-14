@@ -37,12 +37,7 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
 
       if (!isSameDate || !isConfirmed || !isNotExcluded) return false;
 
-      // Room B (id=1) and Room C (id=2) are linked and cannot be booked at the same time
-      if (roomId === 1 || roomId === 2) {
-        return booking.room_id === 1 || booking.room_id === 2;
-      }
-
-      // For other rooms, only check bookings for that specific room
+      // Check bookings for the specific room only - no room linking
       return booking.room_id === roomId;
     });
 
@@ -137,11 +132,7 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
 
       if (!isSameDate || !isConfirmed || !isNotExcluded) return false;
 
-      // Room B (id=1) and Room C (id=2) are linked
-      if (roomId === 1 || roomId === 2) {
-        return booking.room_id === 1 || booking.room_id === 2;
-      }
-
+      // Check bookings for the specific room only - no room linking
       return booking.room_id === roomId;
     });
 
@@ -189,8 +180,8 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
       maxTotalMinutes = 22 * 60; // 22:00
     }
 
-    // Generate end time options in 30-minute increments from start+30min to max
-    for (let totalMinutes = startTotalMinutes + 30; totalMinutes <= maxTotalMinutes; totalMinutes += 30) {
+    // Generate end time options in 30-minute increments from start+60min (1 hour minimum) to max
+    for (let totalMinutes = startTotalMinutes + 60; totalMinutes <= maxTotalMinutes; totalMinutes += 30) {
       const hour = Math.floor(totalMinutes / 60);
       const minute = totalMinutes % 60;
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
@@ -204,7 +195,7 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
   }
 };
 
-// Helper function to generate all possible end times after start time
+// Helper function to generate all possible end times after start time (1 hour minimum)
 const generateAllEndTimeOptions = (startTime) => {
   const options = [];
   const [startHourStr, startMinuteStr] = startTime.split(':');
@@ -212,8 +203,8 @@ const generateAllEndTimeOptions = (startTime) => {
   const startMinute = parseInt(startMinuteStr || '0');
   const startTotalMinutes = startHour * 60 + startMinute;
 
-  // Generate all 30-minute slots from start+30min to 22:00
-  for (let totalMinutes = startTotalMinutes + 30; totalMinutes <= 22 * 60; totalMinutes += 30) {
+  // Generate all 30-minute slots from start+60min (1 hour minimum) to 22:00
+  for (let totalMinutes = startTotalMinutes + 60; totalMinutes <= 22 * 60; totalMinutes += 30) {
     const hour = Math.floor(totalMinutes / 60);
     const minute = totalMinutes % 60;
     options.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
@@ -260,11 +251,7 @@ export const checkDailySlotConflict = async (roomId, date, slot) => {
 
             if (!isSameDate || !isConfirmed) return false;
 
-            // Room B (id=1) and Room C (id=2) are linked
-            if (roomId === 1 || roomId === 2) {
-                return b.room_id === 1 || b.room_id === 2;
-            }
-
+            // Check bookings for the specific room only - no room linking
             return b.room_id === roomId;
         });
 

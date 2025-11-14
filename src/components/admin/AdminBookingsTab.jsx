@@ -109,6 +109,8 @@ const normalizeBooking = (booking) => {
         return '';
       }
     })(),
+    // Admin notes
+    admin_notes: booking.admin_notes || '',
     // Normalize user data (Supabase embeds user object)
     user: userInfo,
   };
@@ -237,64 +239,51 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     }
   };
   
-  const handleSaveBooking = (updatedBooking) => {
-    const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
-    let hasConflict = false;
+  const handleSaveBooking = async (updatedBooking) => {
+    try {
+      // Convert date and time to ISO timestamps for database
+      const startTime = `${updatedBooking.date}T${updatedBooking.startTime}:00`;
+      const endTime = `${updatedBooking.date}T${updatedBooking.endTime}:00`;
 
-    const roomBookings = allBookings.filter(booking =>
-      booking.room.id === updatedBooking.room.id &&
-      booking.date === updatedBooking.date &&
-      booking.status === 'confirmed' &&
-      booking.id !== updatedBooking.id
-    );
+      // Prepare update data
+      const updates = {
+        room_id: updatedBooking.room.id,
+        start_time: startTime,
+        end_time: endTime,
+        admin_notes: updatedBooking.admin_notes || null
+      };
 
-    const newStart = new Date(`${updatedBooking.date}T${updatedBooking.startTime}:00`);
-    const newEnd = new Date(`${updatedBooking.date}T${updatedBooking.endTime}:00`);
+      // Update booking in database
+      const result = await bookingService.updateBooking(updatedBooking.id, updates);
 
-    hasConflict = roomBookings.some(booking => {
-      const existingStart = new Date(`${booking.date}T${booking.startTime}:00`);
-      const existingEnd = new Date(`${booking.date}T${booking.endTime}:00`);
-      return (newStart < existingEnd && newEnd > existingStart);
-    });
+      if (!result.success) {
+        toast({
+          title: language === 'zh' ? '更新失敗' : 'Update Failed',
+          description: result.error,
+          variant: "destructive"
+        });
+        return;
+      }
 
-    if (updatedBooking.room.id === 1) { // B&C
-        const roomCBookings = allBookings.filter(b => b.room.id === 2 && b.date === updatedBooking.date && b.status === 'confirmed' && b.id !== updatedBooking.id);
-        if(roomCBookings.some(b => (newStart < new Date(`${b.date}T${b.endTime}:00`) && newEnd > new Date(`${b.date}T${b.startTime}:00`)))) {
-            hasConflict = true;
-        }
-    } else if (updatedBooking.room.id === 2) { // C
-        const roomBCBookings = allBookings.filter(b => b.room.id === 1 && b.date === updatedBooking.date && b.status === 'confirmed' && b.id !== updatedBooking.id);
-        if(roomBCBookings.some(b => (newStart < new Date(`${b.date}T${b.endTime}:00`) && newEnd > new Date(`${b.date}T${b.startTime}:00`)))) {
-            hasConflict = true;
-        }
-    }
+      // Refresh bookings list
+      const refreshResult = await bookingService.getAllBookings();
+      if (refreshResult.success) {
+        setBookings(refreshResult.bookings);
+      }
+      setEditingBooking(null);
 
-    if (hasConflict) {
       toast({
-        title: t.booking.timeConflict,
-        description: t.booking.timeConflictDesc,
+        title: t.admin.bookingUpdated,
+        description: t.admin.bookingUpdatedDesc
+      });
+    } catch (error) {
+      console.error('Error updating booking:', error);
+      toast({
+        title: language === 'zh' ? '更新失敗' : 'Update Failed',
+        description: error.message || (language === 'zh' ? '無法更新預約' : 'Failed to update booking'),
         variant: "destructive"
       });
-      return;
     }
-
-    const originalBooking = allBookings.find(b => b.id === updatedBooking.id);
-    const requiresReconfirmation = !originalBooking.userId || originalBooking.userId !== updatedBooking.userId || originalBooking.date !== updatedBooking.date || originalBooking.startTime !== updatedBooking.startTime || originalBooking.endTime !== updatedBooking.endTime;
-
-    let finalBooking = { ...updatedBooking, status: 'modified' };
-    if (!finalBooking.receiptNumber) {
-      finalBooking.receiptNumber = generateReceiptNumber();
-    }
-
-    const updatedBookingsList = allBookings.map(b => b.id === finalBooking.id ? finalBooking : b);
-    localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookingsList));
-    setBookings(updatedBookingsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-    setEditingBooking(null);
-
-    toast({
-      title: t.admin.bookingUpdated,
-      description: requiresReconfirmation ? (language === 'zh' ? '訂單已修改，等待客戶重新確認。' : 'Booking modified and awaiting re-confirmation.') : t.admin.bookingUpdatedDesc
-    });
   };
 
   // Handle payment confirmation for cash bookings
@@ -794,6 +783,14 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
               {booking.specialRequests && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg">
                   <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '特殊要求：' : 'Special Requests: '}</strong>{booking.specialRequests}</p>
+                </div>
+              )}
+              {booking.admin_notes && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    <strong>{language === 'zh' ? '📝 管理員備註：' : '📝 Admin Notes: '}</strong>
+                    {booking.admin_notes}
+                  </p>
                 </div>
               )}
               {booking.status === 'cancelled' && booking.cancelled_at && (

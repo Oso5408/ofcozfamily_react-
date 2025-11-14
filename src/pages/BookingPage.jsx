@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from "react-helmet-async";
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -13,7 +13,7 @@ import { roomsData } from '@/data/roomsData';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { generateReceiptNumber } from '@/lib/utils';
-import { bookingService, roomService, storageService, emailService } from '@/services';
+import { bookingService, roomService, storageService, emailService, availableDatesService } from '@/services';
 
 export const BookingPage = () => {
   const { roomId } = useParams();
@@ -21,8 +21,9 @@ export const BookingPage = () => {
   const { language } = useLanguage();
   const { user, updateUserTokens, deductBRBalance, deductDP20Balance } = useAuth();
   const t = translations[language];
-  
+
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [availableDateStrings, setAvailableDateStrings] = useState([]);
   const [bookingData, setBookingData] = useState({
     name: '',
     email: '',
@@ -43,6 +44,8 @@ export const BookingPage = () => {
   });
   const { toast } = useToast();
   const [showTermsDialog, setShowTermsDialog] = useState(false);
+  const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false);
+  const termsContentRef = useRef(null);
 
   useEffect(() => {
     // Check if user is logged in - redirect to login if not
@@ -90,6 +93,16 @@ export const BookingPage = () => {
       startTime: room.id === 9 ? '10:00' : prev.startTime || '',
       endTime: room.id === 9 ? '18:30' : prev.endTime || ''
     }));
+
+    // Load available dates for this specific room
+    const loadAvailableDates = async () => {
+      if (!room) return;
+      const result = await availableDatesService.getAvailableDateStrings(room.id);
+      if (result.success) {
+        setAvailableDateStrings(result.dateStrings);
+      }
+    };
+    loadAvailableDates();
   }, [roomId, navigate, user, language, toast]);
 
   const checkTimeConflict = async (roomId, date, startTime, endTime) => {
@@ -170,7 +183,18 @@ export const BookingPage = () => {
       toast({ title: t.booking.timeConflict, description: t.booking.timeConflictDesc, variant: "destructive" });
       return;
     }
+    // Reset scroll state and show terms dialog
+    setTermsScrolledToEnd(false);
     setShowTermsDialog(true);
+  };
+
+  // Handle scroll event for terms and conditions
+  const handleTermsScroll = (e) => {
+    const element = e.target;
+    const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 5; // 5px tolerance
+    if (isAtBottom && !termsScrolledToEnd) {
+      setTermsScrolledToEnd(true);
+    }
   };
 
   const handleSubmitBooking = async () => {
@@ -444,6 +468,36 @@ export const BookingPage = () => {
         }
       }
 
+      // Send booking created email to user
+      console.log('📧 Sending booking created email...');
+      try {
+        const bookingEmailData = {
+          email: user?.email || bookingData.email,
+          name: user?.name || user?.full_name || bookingData.name,
+          receiptNumber: result.booking.receipt_number,
+          room: selectedRoom,
+          date: bookingData.date,
+          startTime: bookingData.startTime,
+          endTime: bookingData.endTime,
+          paymentMethod: bookingData.bookingType,
+          totalCost: totalCost,
+          specialRequests: bookingData.specialRequests || '',
+        };
+
+        const emailResult = await emailService.sendBookingCreatedEmail(
+          bookingEmailData,
+          language
+        );
+
+        if (emailResult.success) {
+          console.log('✅ Booking created email sent successfully');
+        } else {
+          console.error('❌ Failed to send booking created email:', emailResult.error);
+        }
+      } catch (emailError) {
+        console.error('❌ Email service error:', emailError);
+      }
+
       // Show success message
       const roomName = t.rooms.roomNames[selectedRoom.name];
       if (bookingData.bookingType === 'cash') {
@@ -515,14 +569,29 @@ export const BookingPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>{t.booking.termsTitle}</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="max-h-[60vh] overflow-y-auto text-sm whitespace-pre-wrap">
+              <div
+                ref={termsContentRef}
+                onScroll={handleTermsScroll}
+                className="max-h-[60vh] overflow-y-auto text-sm whitespace-pre-wrap border border-gray-200 rounded p-4"
+              >
                 {t.booking.terms}
               </div>
             </AlertDialogDescription>
+            {!termsScrolledToEnd && (
+              <p className="text-xs text-amber-600 mt-2 font-medium">
+                {language === 'zh' ? '⬇️ 請滾動至底部以繼續' : '⬇️ Please scroll to the bottom to continue'}
+              </p>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{language === 'zh' ? '取消' : 'Cancel'}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubmitBooking}>{language === 'zh' ? '同意並提交' : 'Agree & Submit'}</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleSubmitBooking}
+              disabled={!termsScrolledToEnd}
+              className={!termsScrolledToEnd ? 'opacity-50 cursor-not-allowed' : ''}
+            >
+              {language === 'zh' ? '同意並提交' : 'Agree & Submit'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
