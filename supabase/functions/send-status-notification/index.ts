@@ -4,6 +4,7 @@ import { sendEmail } from "./resend-client.ts"
 
 interface StatusNotificationRequest {
   to: string
+  bcc?: string  // Admin email for notifications
   language: 'en' | 'zh'
   type: 'receiptReceived' | 'paymentConfirmed'
   booking: {
@@ -350,7 +351,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, language, type, booking, roomNameTranslated }: StatusNotificationRequest = await req.json()
+    const { to, bcc, language, type, booking, roomNameTranslated }: StatusNotificationRequest = await req.json()
 
     // Validate required fields
     if (!to || !language || !type || !booking) {
@@ -378,7 +379,7 @@ serve(async (req) => {
     }
 
     // Send email
-    const result = await sendEmail({ to, subject, html })
+    const result = await sendEmail({ to, subject, html, bcc })
 
     return new Response(
       JSON.stringify(result),

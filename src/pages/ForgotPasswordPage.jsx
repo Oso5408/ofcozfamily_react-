@@ -26,7 +26,9 @@ export const ForgotPasswordPage = () => {
 
     try {
       // Send password reset email via Supabase (using Resend)
-      const redirectUrl = `${window.location.origin}/#/reset-password`;
+      // IMPORTANT: Don't include hash route - use dedicated callback page to avoid HashRouter collision
+      // The callback page will extract tokens and redirect to /reset-password
+      const redirectUrl = `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });

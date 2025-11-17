@@ -4,7 +4,12 @@ import { translations } from '@/data/translations';
 /**
  * Email Service
  * Sends booking confirmation emails via Supabase Edge Function
+ *
+ * All emails are BCC'd to admin: ofcozfamily@gmail.com
  */
+
+// Admin email that receives a copy of all outgoing emails
+const ADMIN_EMAIL = 'ofcozfamily@gmail.com';
 
 export const emailService = {
   /**
@@ -31,6 +36,7 @@ export const emailService = {
       // Prepare booking data for email template
       const emailData = {
         to: booking.email,
+        bcc: ADMIN_EMAIL, // Admin receives copy of all emails
         language: language,
         booking: {
           name: booking.name || booking.users?.full_name || 'Valued Customer',
@@ -48,7 +54,7 @@ export const emailService = {
         roomNameTranslated: t.rooms.roomNames[booking.room.name] || booking.room.name,
       };
 
-      console.log('📧 Sending booking created email to:', emailData.to);
+      console.log('📧 Sending booking created email to:', emailData.to, '(BCC:', ADMIN_EMAIL, ')');
 
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('send-booking-created', {
@@ -110,6 +116,7 @@ export const emailService = {
       // Prepare booking data for email template
       const emailData = {
         to: booking.email,
+        bcc: ADMIN_EMAIL, // Admin receives copy of all emails
         language: language,
         booking: {
           name: booking.name || booking.users?.full_name || 'Valued Customer',
@@ -125,7 +132,7 @@ export const emailService = {
         roomNameTranslated: t.rooms.roomNames[booking.room.name] || booking.room.name,
       };
 
-      console.log('📧 Sending booking confirmation email to:', emailData.to);
+      console.log('📧 Sending booking confirmation email to:', emailData.to, '(BCC:', ADMIN_EMAIL, ')');
 
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('send-booking-confirmation', {
@@ -217,6 +224,7 @@ export const emailService = {
 
       const emailData = {
         to: userEmail,
+        bcc: ADMIN_EMAIL, // Admin receives copy of all emails
         language: language,
         type: 'receiptReceived',
         booking: {
@@ -232,7 +240,7 @@ export const emailService = {
         roomNameTranslated: roomNameTranslated,
       };
 
-      console.log('📧 Sending receipt received email to:', emailData.to);
+      console.log('📧 Sending receipt received email to:', emailData.to, '(BCC:', ADMIN_EMAIL, ')');
 
       const { data, error } = await supabase.functions.invoke('send-status-notification', {
         body: emailData,
@@ -328,6 +336,7 @@ export const emailService = {
 
       const emailData = {
         to: userEmail,
+        bcc: ADMIN_EMAIL, // Admin receives copy of all emails
         language: language,
         type: 'paymentConfirmed',
         booking: {
@@ -344,7 +353,7 @@ export const emailService = {
         roomNameTranslated: roomNameTranslated,
       };
 
-      console.log('📧 Sending payment confirmed email to:', emailData.to);
+      console.log('📧 Sending payment confirmed email to:', emailData.to, '(BCC:', ADMIN_EMAIL, ')');
 
       const { data, error } = await supabase.functions.invoke('send-status-notification', {
         body: emailData,
@@ -406,6 +415,7 @@ export const emailService = {
 
       const emailData = {
         to: userEmail,
+        bcc: ADMIN_EMAIL, // Admin receives copy of all emails
         language: language,
         package: {
           name: userName || 'Valued Customer',
@@ -417,7 +427,7 @@ export const emailService = {
         },
       };
 
-      console.log('📧 Sending package assigned email to:', emailData.to);
+      console.log('📧 Sending package assigned email to:', emailData.to, '(BCC:', ADMIN_EMAIL, ')');
       console.log('📦 Package details:', { packageType, amount, newBalance, reason });
 
       const { data, error } = await supabase.functions.invoke('send-package-notification', {

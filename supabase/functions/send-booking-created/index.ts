@@ -4,6 +4,7 @@ import { sendEmail } from "./resend-client.ts"
 
 interface BookingCreatedRequest {
   to: string
+  bcc?: string  // Admin email for notifications
   language: 'en' | 'zh'
   booking: {
     name: string
@@ -225,11 +226,12 @@ const getEmailHtml = (language: string, booking: any, roomNameTranslated: string
   }
 }
 
-async function sendEmailViaResend(to: string, subject: string, html: string) {
+async function sendEmailViaResend(to: string, subject: string, html: string, bcc?: string) {
   return await sendEmail({
     to,
     subject,
     html,
+    bcc,
   })
 }
 
@@ -240,7 +242,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, language, booking, roomNameTranslated }: BookingCreatedRequest = await req.json()
+    const { to, bcc, language, booking, roomNameTranslated }: BookingCreatedRequest = await req.json()
 
     // Validate required fields
     if (!to || !language || !booking) {
@@ -254,8 +256,8 @@ serve(async (req) => {
     const subject = getEmailSubject(language)
     const html = getEmailHtml(language, booking, roomNameTranslated)
 
-    // Send email
-    const result = await sendEmailViaResend(to, subject, html)
+    // Send email (with BCC to admin if provided)
+    const result = await sendEmailViaResend(to, subject, html, bcc)
 
     return new Response(
       JSON.stringify(result),

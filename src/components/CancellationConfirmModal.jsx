@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import cancellationPolicyService from '@/services/cancellationPolicyService';
 import { bookingService } from '@/services';
-import { AlertTriangle, Clock, XCircle, CheckCircle2, Calendar, Info } from 'lucide-react';
+import { Clock, XCircle, Calendar } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -20,37 +19,6 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState('');
   const [confirmChecked, setConfirmChecked] = useState(false);
-  const [hoursBeforeBooking, setHoursBeforeBooking] = useState(0);
-  const [policyCheck, setPolicyCheck] = useState(null);
-  const [monthlyStats, setMonthlyStats] = useState(null);
-
-  // Calculate hours and check policy when modal opens
-  useEffect(() => {
-    const loadPolicyInfo = async () => {
-      if (!booking || !isOpen || !user) return;
-
-      // Calculate hours before booking
-      const hours = cancellationPolicyService.calculateHoursBeforeBooking(booking.start_time);
-      setHoursBeforeBooking(hours);
-
-      // Check if token should be deducted
-      const check = await cancellationPolicyService.shouldDeductToken(user.id, hours);
-      setPolicyCheck(check);
-
-      // Get monthly cancellation stats
-      const stats = await cancellationPolicyService.getUserMonthlyCancellations(user.id);
-      setMonthlyStats(stats);
-
-      console.log('📋 Policy check:', check);
-      console.log('📊 Monthly stats:', stats);
-    };
-
-    if (isOpen && booking) {
-      loadPolicyInfo();
-      setReason('');
-      setConfirmChecked(false);
-    }
-  }, [isOpen, booking, user]);
 
   const handleCancel = async () => {
     if (!confirmChecked) {
@@ -65,36 +33,28 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
     setCancelling(true);
 
     try {
+      // Call cancelBooking with NO policy enforcement
       const result = await bookingService.cancelBooking(
         booking.id,
         user.id,
-        reason,
-        policyCheck
+        reason
       );
 
       if (!result.success) {
-        if (result.insufficientTokens) {
-          toast({
-            title: t.cancellation.insufficientTokens,
-            description: t.cancellation.insufficientTokensDesc.replace('{tokens}', user.tokens || 0),
-            variant: 'destructive'
-          });
-        } else {
-          toast({
-            title: t.cancellation.cancelError,
-            description: result.error,
-            variant: 'destructive'
-          });
-        }
+        toast({
+          title: t.cancellation.cancelError,
+          description: result.error,
+          variant: 'destructive'
+        });
         return;
       }
 
-      // Success
+      // Success - always FREE cancellation now
       toast({
         title: t.cancellation.cancelSuccess,
-        description: result.tokenDeducted
-          ? t.cancellation.cancelledWithToken
-          : t.cancellation.cancelSuccessDesc
+        description: language === 'zh'
+          ? '預約已取消（免費）'
+          : 'Booking cancelled (FREE - no charges)'
       });
 
       if (onCancelSuccess) {
@@ -116,19 +76,18 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
 
   if (!booking) return null;
 
-  const willDeductToken = policyCheck?.shouldDeduct || false;
-  const freeCancellationsRemaining = policyCheck?.currentStats?.freeCancellationsRemaining || 0;
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-amber-800 flex items-center">
             <XCircle className="w-5 h-5 mr-2" />
             {t.cancellation.cancelTitle}
           </DialogTitle>
           <DialogDescription>
-            {t.cancellation.cancelDesc}
+            {language === 'zh'
+              ? '您確定要取消此預約嗎？此操作無法撤銷。'
+              : 'Are you sure you want to cancel this booking? This action cannot be undone.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -158,87 +117,27 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
             </div>
           </div>
 
-          {/* Time Remaining */}
-          <div className={`rounded-lg p-4 border-2 ${
-            hoursBeforeBooking < 0 ? 'bg-red-50 border-red-300' :
-            hoursBeforeBooking < 48 ? 'bg-yellow-50 border-yellow-300' :
-            'bg-green-50 border-green-300'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Clock className="w-5 h-5 mr-2" />
-                <span className="font-semibold">
-                  {t.cancellation.hoursRemaining.replace('{hours}', Math.max(0, hoursBeforeBooking))}
-                </span>
-              </div>
-              <span className={`text-xs font-medium px-2 py-1 rounded ${
-                hoursBeforeBooking >= 48 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                {hoursBeforeBooking >= 48 ? t.cancellation.moreThan48h : t.cancellation.lessThan48h}
-              </span>
+          {/* FREE Cancellation Notice */}
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="font-semibold text-green-900">
+                {language === 'zh' ? '✓ 免費取消 - 無需扣除代幣' : '✓ FREE Cancellation - No tokens deducted'}
+              </p>
             </div>
           </div>
 
-          {/* Token Deduction Warning */}
-          {willDeductToken ? (
-            <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
-              <div className="flex items-start">
-                <AlertTriangle className="w-5 h-5 text-orange-600 mr-2 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold text-orange-900">{t.cancellation.willDeductToken}</p>
-                  <p className="text-sm text-orange-700 mt-1">
-                    {policyCheck?.reason}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-              <div className="flex items-center">
-                <CheckCircle2 className="w-5 h-5 text-green-600 mr-2" />
-                <p className="font-semibold text-green-900">{t.cancellation.freeCancel}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Monthly Cancellation Stats */}
-          {monthlyStats && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2 flex items-center">
-                <Info className="w-4 h-4 mr-2" />
-                {t.cancellation.monthlyStats}
-              </h4>
-              <div className="text-sm text-blue-800 space-y-1">
-                <p>{t.cancellation.freeCancellationsUsed
-                  .replace('{used}', monthlyStats.totalWithoutToken)
-                  .replace('{total}', 3)}
-                </p>
-                <p>{t.cancellation.freeCancellationsRemaining
-                  .replace('{remaining}', freeCancellationsRemaining)}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Cancellation Policy */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-900 mb-2">{t.cancellation.policyTitle}</h4>
-            <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-              {t.cancellation.policyRules.map((rule, index) => (
-                <li key={index}>{rule}</li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Cancellation Reason */}
+          {/* Cancellation Reason (Optional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t.cancellation.cancelReason}
+              {language === 'zh' ? '取消原因（可選）' : 'Cancellation Reason (Optional)'}
             </label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder={t.cancellation.reasonPlaceholder}
+              placeholder={language === 'zh' ? '請輸入取消原因...' : 'Enter reason for cancellation...'}
               className="min-h-[80px]"
             />
           </div>
@@ -254,7 +153,7 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
               htmlFor="confirm-cancel"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
             >
-              {t.cancellation.confirmCheckbox}
+              {language === 'zh' ? '我確認要取消此預約' : 'I confirm I want to cancel this booking'}
             </label>
           </div>
         </div>
@@ -281,7 +180,7 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
             ) : (
               <>
                 <XCircle className="w-4 h-4 mr-2" />
-                {t.cancellation.confirmCancel}
+                {language === 'zh' ? '確認取消' : 'Confirm Cancellation'}
               </>
             )}
           </Button>

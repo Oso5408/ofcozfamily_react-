@@ -5,6 +5,7 @@ export interface EmailOptions {
   to: string
   subject: string
   html: string
+  bcc?: string  // Admin email for BCC
   from?: {
     name: string
     email: string
@@ -35,9 +36,23 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
     console.log('📧 Sending email via Resend:', {
       from: `${fromName} <${fromEmail}>`,
       to: options.to,
+      bcc: options.bcc || 'none',
       subject: options.subject,
       hasHtml: !!options.html,
     })
+
+    // Prepare email payload
+    const emailPayload: any = {
+      from: `${fromName} <${fromEmail}>`,
+      to: [options.to],
+      subject: options.subject,
+      html: options.html,
+    }
+
+    // Add BCC if provided (admin notification)
+    if (options.bcc) {
+      emailPayload.bcc = [options.bcc]
+    }
 
     // Call Resend API
     const response = await fetch('https://api.resend.com/emails', {
@@ -46,12 +61,7 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: [options.to],
-        subject: options.subject,
-        html: options.html,
-      }),
+      body: JSON.stringify(emailPayload),
     })
 
     const result = await response.json()

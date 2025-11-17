@@ -214,11 +214,11 @@ export const bookingService = {
   },
 
   /**
-   * Cancel booking with policy enforcement
+   * Cancel booking - FREE cancellation for all users (policy disabled)
    */
-  async cancelBooking(bookingId, userId, reason = '', policyCheck = null) {
+  async cancelBooking(bookingId, userId, reason = '') {
     try {
-      console.log('🚫 Starting cancellation for booking:', bookingId);
+      console.log('🚫 Starting FREE cancellation for booking:', bookingId);
 
       // Fetch booking details
       const { data: booking, error: fetchError } = await supabase
@@ -245,60 +245,12 @@ export const bookingService = {
       // Calculate hours before booking
       const hoursBeforeBooking = Math.floor((bookingStart - now) / (1000 * 60 * 60));
 
-      // Cannot cancel past bookings
-      if (hoursBeforeBooking < 0) {
-        return { success: false, error: 'Cannot cancel booking after start time. No-show policy applies.' };
-      }
+      // ⚠️ POLICY DISABLED: Allow cancellation anytime, even past bookings
+      // No token deduction, no time restrictions
 
-      // Determine if token should be deducted (if not provided by policy check)
-      let shouldDeductToken = policyCheck?.shouldDeduct || false;
-      let tokenDeducted = false;
+      console.log('✅ FREE cancellation - no policy enforcement');
 
-      // Deduct token if required
-      if (shouldDeductToken) {
-        console.log('💰 Deducting 1 token for cancellation');
-
-        // Check if user has enough tokens
-        const { data: user, error: userError } = await supabase
-          .from('users')
-          .select('tokens')
-          .eq('id', userId)
-          .single();
-
-        if (userError) throw userError;
-
-        if ((user.tokens || 0) < 1) {
-          return {
-            success: false,
-            error: 'Insufficient tokens for cancellation. You need 1 token to cancel this booking.',
-            insufficientTokens: true
-          };
-        }
-
-        // Deduct token
-        const { error: deductError } = await supabase
-          .from('users')
-          .update({ tokens: user.tokens - 1 })
-          .eq('id', userId);
-
-        if (deductError) throw deductError;
-
-        // Create token history record
-        await supabase
-          .from('token_history')
-          .insert({
-            user_id: userId,
-            change: -1,
-            new_balance: user.tokens - 1,
-            transaction_type: 'cancellation_fee',
-            booking_id: bookingId,
-            description: `Cancellation fee for booking (${hoursBeforeBooking}h before)`
-          });
-
-        tokenDeducted = true;
-      }
-
-      // Update booking status to cancelled
+      // Update booking status to cancelled (NO token deduction)
       const { data: updatedBooking, error: updateError } = await supabase
         .from('bookings')
         .update({
@@ -306,7 +258,7 @@ export const bookingService = {
           cancelled_at: now.toISOString(),
           cancelled_by: userId,
           cancellation_hours_before: hoursBeforeBooking,
-          token_deducted_for_cancellation: tokenDeducted,
+          token_deducted_for_cancellation: false, // Never deduct tokens
           cancellation_reason: reason
         })
         .eq('id', bookingId)
@@ -315,12 +267,12 @@ export const bookingService = {
 
       if (updateError) throw updateError;
 
-      console.log('✅ Booking cancelled successfully');
+      console.log('✅ Booking cancelled successfully (FREE - no charges)');
 
       return {
         success: true,
         booking: updatedBooking,
-        tokenDeducted,
+        tokenDeducted: false, // Always false - policy disabled
         hoursBeforeBooking
       };
     } catch (error) {

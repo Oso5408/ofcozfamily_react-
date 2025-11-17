@@ -1,9 +1,10 @@
-// Supabase Edge Function to send package assignment notifications via SMTP
+// Supabase Edge Function to send package assignment notifications via Resend
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { sendEmail } from "../send-booking-confirmation/smtp-client.ts"
+import { sendEmail } from "./resend-client.ts"
 
 interface PackageNotificationRequest {
   to: string
+  bcc?: string  // Admin email for notifications
   language: 'en' | 'zh'
   package: {
     name: string
@@ -212,7 +213,7 @@ serve(async (req) => {
   }
 
   try {
-    const { to, language, package: pkg }: PackageNotificationRequest = await req.json()
+    const { to, bcc, language, package: pkg }: PackageNotificationRequest = await req.json()
 
     if (!to || !language || !pkg) {
       return new Response(
@@ -223,7 +224,7 @@ serve(async (req) => {
 
     const subject = getPackageSubject(language)
     const html = getPackageHtml(language, pkg)
-    const result = await sendEmail({ to, subject, html })
+    const result = await sendEmail({ to, subject, html, bcc })
 
     return new Response(
       JSON.stringify(result),

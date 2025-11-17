@@ -12,6 +12,7 @@ import { UserDetailPage } from '@/pages/UserDetailPage';
 import { PricingPage } from '@/pages/PricingPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage';
 import { BookingPage } from '@/pages/BookingPage';
 import { EmailConfirmPage } from '@/pages/EmailConfirmPage';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
@@ -33,6 +34,7 @@ function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/auth/confirm" element={<EmailConfirmPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/admin" element={<AdminPage />} />
