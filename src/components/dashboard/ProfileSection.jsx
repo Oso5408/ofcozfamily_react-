@@ -45,12 +45,26 @@ export const ProfileSection = () => {
     });
   };
 
-  const handlePasswordUpdate = () => {
+  const handlePasswordUpdate = async () => {
+    // Validate password length
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: language === 'zh' ? '密碼太短' : 'Password too short',
+        description: language === 'zh' ? '密碼必須至少6個字符' : 'Password must be at least 6 characters',
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate passwords match
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast({ title: t.dashboard.passwordMismatch, variant: "destructive" });
       return;
     }
-    const result = changePassword(user.id, passwordData.oldPassword, passwordData.newPassword);
+
+    // Call changePassword (it's async, so await it)
+    const result = await changePassword(user.id, passwordData.oldPassword, passwordData.newPassword);
+
     if (result.success) {
       toast({ title: t.dashboard.passwordUpdated, description: t.dashboard.passwordUpdatedDesc });
       setEditingPassword(false);
@@ -252,6 +266,7 @@ export const ProfileSection = () => {
               <PasswordInput
                 value={passwordData.newPassword}
                 onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                placeholder={language === 'zh' ? '至少6個字符' : 'Min 6 characters'}
                 className="border-amber-200 focus:border-amber-400"
               />
             </div>
@@ -260,6 +275,7 @@ export const ProfileSection = () => {
               <PasswordInput
                 value={passwordData.confirmPassword}
                 onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                placeholder={language === 'zh' ? '再次輸入新密碼' : 'Re-enter new password'}
                 className="border-amber-200 focus:border-amber-400"
               />
             </div>

@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Helmet } from "react-helmet-async";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
@@ -26,6 +28,17 @@ import {
 import { bookingService } from '@/services/bookingService';
 import { roomService } from '@/services/roomService';
 import { userService } from '@/services/userService';
+import { auditService } from '@/services/auditService';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const AdminPage = () => {
   const { user, logout } = useAuth();
@@ -41,6 +54,12 @@ export const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [filterStatus, setFilterStatus] = useState('all');
   const [notifications, setNotifications] = useState([]);
+  const [userToResetPassword, setUserToResetPassword] = useState(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [userToChangePassword, setUserToChangePassword] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   const { updateUserRole, adminResetPassword } = useAuth();
 
@@ -132,31 +151,57 @@ export const AdminPage = () => {
     });
   };
 
-  const handlePasswordReset = async (userId) => {
+  // Show confirmation dialog for password reset
+  const handlePasswordReset = (userId) => {
+    setUserToResetPassword(userId);
+  };
+
+  // Confirm and execute password reset
+  const confirmPasswordReset = async () => {
+    if (!userToResetPassword) return;
+
+    setIsResettingPassword(true);
+
     try {
-      const targetUser = users.find(u => u.id === userId);
+      const targetUser = users.find(u => u.id === userToResetPassword);
 
       if (!targetUser || !targetUser.email) {
         toast({
-          title: language === 'zh' ? '重設失敗' : 'Reset Failed',
+          title: language === 'zh' ? '❌ 重設失敗' : '❌ Reset Failed',
           description: language === 'zh' ? '找不到用戶電郵' : 'User email not found',
           variant: 'destructive'
         });
         return;
       }
 
-      // Import supabase client
+      // Step 1: Check rate limit (max 3 resets per hour)
+      console.log('🔒 Checking rate limit for user:', userToResetPassword);
+      const rateLimitCheck = await auditService.checkPasswordResetRateLimit(userToResetPassword);
+
+      if (!rateLimitCheck.allowed) {
+        toast({
+          title: language === 'zh' ? '⚠️ 操作過於頻繁' : '⚠️ Too Many Attempts',
+          description: language === 'zh'
+            ? `此用戶的密碼重設請求過於頻繁。請稍後再試。（${rateLimitCheck.count} 次 / 小時）`
+            : `Too many password reset requests for this user. Please try again later. (${rateLimitCheck.count} attempts in the last hour)`,
+          variant: 'destructive',
+          duration: 7000
+        });
+        return;
+      }
+
+      // Step 2: Send password reset email via Supabase
       const { supabase } = await import('@/lib/supabase');
 
-      // Send password reset email
+      console.log('📧 Sending password reset email to:', targetUser.email);
       const { error } = await supabase.auth.resetPasswordForEmail(targetUser.email, {
         redirectTo: `${window.location.origin}/#/reset-password`,
       });
 
       if (error) {
-        console.error('Password reset error:', error);
+        console.error('❌ Password reset error:', error);
         toast({
-          title: language === 'zh' ? '重設失敗' : 'Reset Failed',
+          title: language === 'zh' ? '❌ 重設失敗' : '❌ Reset Failed',
           description: error.message || (language === 'zh' ? '無法發送重設郵件' : 'Failed to send reset email'),
           variant: 'destructive',
           duration: 5000
@@ -164,23 +209,139 @@ export const AdminPage = () => {
         return;
       }
 
+      // Step 3: Log the action in audit trail
+      console.log('📝 Logging password reset action...');
+      await auditService.logPasswordReset(userToResetPassword, {
+        user_email: targetUser.email,
+        user_name: targetUser.full_name || targetUser.name
+      });
+
+      // Step 4: Show success message
       toast({
-        title: language === 'zh' ? '郵件已發送' : 'Email Sent',
+        title: language === 'zh' ? '✅ 郵件已發送' : '✅ Email Sent',
         description: language === 'zh'
-          ? `密碼重設郵件已發送到 ${targetUser.email}`
-          : `Password reset email has been sent to ${targetUser.email}`,
+          ? `密碼重設郵件已發送到 ${targetUser.email}。此操作已記錄在系統日誌中。`
+          : `Password reset email has been sent to ${targetUser.email}. This action has been logged.`,
         duration: 5000
       });
+
+      console.log('✅ Password reset successful and logged');
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('❌ Unexpected error:', error);
       toast({
-        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        title: language === 'zh' ? '❌ 發生錯誤' : '❌ Error Occurred',
         description: error.message || (language === 'zh' ? '無法重設密碼' : 'Failed to reset password'),
         variant: 'destructive'
       });
+    } finally {
+      setIsResettingPassword(false);
+      setUserToResetPassword(null);
     }
   };
-  
+
+  // Show dialog for direct password change
+  const handleDirectPasswordChange = (userId) => {
+    setUserToChangePassword(userId);
+    setNewPassword('');
+    setConfirmNewPassword('');
+  };
+
+  // Confirm and execute direct password change
+  const confirmDirectPasswordChange = async () => {
+    if (!userToChangePassword) return;
+
+    // Validate passwords match
+    if (newPassword !== confirmNewPassword) {
+      toast({
+        title: language === 'zh' ? '❌ 密碼不匹配' : '❌ Passwords do not match',
+        description: language === 'zh' ? '請確保兩次輸入的密碼相同' : 'Please ensure both passwords are identical',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validate password strength
+    if (newPassword.length < 6) {
+      toast({
+        title: language === 'zh' ? '❌ 密碼太短' : '❌ Password too short',
+        description: language === 'zh' ? '密碼必須至少6個字符' : 'Password must be at least 6 characters',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const targetUser = users.find(u => u.id === userToChangePassword);
+
+      if (!targetUser) {
+        toast({
+          title: language === 'zh' ? '❌ 找不到用戶' : '❌ User not found',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      console.log('🔐 Calling admin password update Edge Function...');
+
+      // Call Edge Function to update password
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/admin-update-user-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'x-application-name': 'ofcoz-family'
+        },
+        body: JSON.stringify({
+          userId: userToChangePassword,
+          newPassword: newPassword
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        console.error('❌ Password update error:', result.error);
+        throw new Error(result.error || 'Failed to update password');
+      }
+
+      // Show success message
+      toast({
+        title: language === 'zh' ? '✅ 密碼已更新' : '✅ Password Updated',
+        description: language === 'zh'
+          ? `用戶 ${targetUser.email} 的密碼已成功更新。此操作已記錄在系統日誌中。`
+          : `Password for ${targetUser.email} has been updated successfully. This action has been logged.`,
+        duration: 5000
+      });
+
+      console.log('✅ Password updated successfully via Edge Function');
+
+      // Close dialog and reset form
+      setUserToChangePassword(null);
+      setNewPassword('');
+      setConfirmNewPassword('');
+
+    } catch (error) {
+      console.error('❌ Error updating password:', error);
+      toast({
+        title: language === 'zh' ? '❌ 更新失敗' : '❌ Update Failed',
+        description: error.message || (language === 'zh' ? '無法更新密碼' : 'Failed to update password'),
+        variant: 'destructive',
+        duration: 7000
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const handleToggleRoomVisibility = async (roomId, currentlyHidden) => {
     try {
       const newHiddenState = !currentlyHidden; // Toggle the state
@@ -415,7 +576,7 @@ export const AdminPage = () => {
                 <AdminBookingsTab bookings={filteredBookings} setBookings={setBookings} users={users} setUsers={setUsers} filterStatus={filterStatus} />
               )}
               {activeTab === 'users' && (
-                <AdminUsersTab users={users} setUsers={setUsers} onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} />
+                <AdminUsersTab users={users} setUsers={setUsers} onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} onDirectPasswordChange={handleDirectPasswordChange} />
               )}
               {activeTab === 'reviews' && (
                 <ReviewsTab bookings={bookings} reviews={reviews} setReviews={setReviews} isAdmin={true} />
@@ -430,6 +591,115 @@ export const AdminPage = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Password Reset Confirmation Dialog */}
+      <AlertDialog open={!!userToResetPassword} onOpenChange={(open) => !open && setUserToResetPassword(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === 'zh' ? '確認重設密碼' : 'Confirm Password Reset'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const targetUser = users.find(u => u.id === userToResetPassword);
+                const userName = targetUser?.full_name || targetUser?.name || targetUser?.email || '';
+                const userEmail = targetUser?.email || '';
+
+                return language === 'zh'
+                  ? `確定要為用戶 "${userName}" (${userEmail}) 發送密碼重設郵件嗎？\n\n用戶將收到一封包含重設連結的郵件。此操作將被記錄在系統日誌中。`
+                  : `Are you sure you want to send a password reset email to "${userName}" (${userEmail})?\n\nThe user will receive an email with a reset link. This action will be logged.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResettingPassword}>
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPasswordReset}
+              disabled={isResettingPassword}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+            >
+              {isResettingPassword
+                ? (language === 'zh' ? '發送中...' : 'Sending...')
+                : (language === 'zh' ? '確認發送' : 'Confirm Send')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Direct Password Change Dialog */}
+      <AlertDialog open={!!userToChangePassword} onOpenChange={(open) => {
+        if (!open) {
+          setUserToChangePassword(null);
+          setNewPassword('');
+          setConfirmNewPassword('');
+        }
+      }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === 'zh' ? '直接設定密碼' : 'Set Password Directly'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const targetUser = users.find(u => u.id === userToChangePassword);
+                const userName = targetUser?.full_name || targetUser?.name || targetUser?.email || '';
+                const userEmail = targetUser?.email || '';
+
+                return language === 'zh'
+                  ? `為用戶 "${userName}" (${userEmail}) 設定新密碼。\n\n用戶將立即使用新密碼登入。此操作將被記錄在系統日誌中。`
+                  : `Set a new password for "${userName}" (${userEmail}).\n\nThe user will be able to login immediately with the new password. This action will be logged.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">
+                {language === 'zh' ? '新密碼' : 'New Password'}
+              </Label>
+              <PasswordInput
+                id="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder={language === 'zh' ? '輸入新密碼（至少6個字符）' : 'Enter new password (min 6 characters)'}
+                disabled={isChangingPassword}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-new-password">
+                {language === 'zh' ? '確認新密碼' : 'Confirm New Password'}
+              </Label>
+              <PasswordInput
+                id="confirm-new-password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                placeholder={language === 'zh' ? '再次輸入新密碼' : 'Re-enter new password'}
+                disabled={isChangingPassword}
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isChangingPassword}>
+              {language === 'zh' ? '取消' : 'Cancel'}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDirectPasswordChange}
+              disabled={isChangingPassword || !newPassword || !confirmNewPassword}
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+            >
+              {isChangingPassword
+                ? (language === 'zh' ? '更新中...' : 'Updating...')
+                : (language === 'zh' ? '確認更新' : 'Confirm Update')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

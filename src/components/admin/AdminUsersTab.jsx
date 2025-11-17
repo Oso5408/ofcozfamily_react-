@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Eye, Shield, User, KeyRound, Trash2, Search } from 'lucide-react';
+import { Eye, Shield, User, KeyRound, Trash2, Search, ChevronDown, Mail, Lock } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,8 +20,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }) => {
+export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, onDirectPasswordChange }) => {
   const navigate = useNavigate();
   const { user: adminUser, deleteUser } = useAuth();
   const { language } = useLanguage();
@@ -144,8 +150,11 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
               animate={{ opacity: 1, y: 0 }}
               className="border border-amber-200 rounded-lg p-6 bg-white/50"
             >
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div className="flex-1">
+              {/* User Card Content */}
+              <div className="space-y-4">
+                {/* Top Row: User Info and Actions */}
+                <div className="flex items-start justify-between flex-wrap gap-4">
+                  <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-lg font-semibold text-amber-800">
                         {user.name || user.full_name || user.email}
@@ -166,25 +175,6 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                   </div>
 
                   <div className="flex items-center space-x-2 flex-wrap gap-2">
-                    {/* Package Balances */}
-                    <div className="text-right mr-4">
-                      <div className="flex gap-2 text-xs flex-wrap">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">
-                          BR15: {user.br15_balance || 0}
-                        </span>
-                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded font-medium">
-                          BR30: {user.br30_balance || 0}
-                        </span>
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded font-medium">
-                          DP20: {user.dp20_balance || 0}
-                        </span>
-                      </div>
-                      {user.dp20_expiry && (
-                        <p className="text-xs text-green-600 mt-1">
-                          {language === 'zh' ? 'DP20 有效期至' : 'DP20 valid until'}: {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
-                        </p>
-                      )}
-                    </div>
 
                     {/* Action Buttons */}
                     <Button
@@ -199,10 +189,27 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
 
                     {adminUser.id !== user.id && (
                       <>
-                        <Button onClick={() => onPasswordReset(user.id)} variant="outline" size="sm">
-                          <KeyRound className="w-4 h-4 mr-2" />
-                          {t.admin.resetPassword}
-                        </Button>
+                        {/* Password Management Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <KeyRound className="w-4 h-4 mr-2" />
+                              {language === 'zh' ? '密碼管理' : 'Password'}
+                              <ChevronDown className="w-4 h-4 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem onClick={() => onPasswordReset(user.id)}>
+                              <Mail className="w-4 h-4 mr-2" />
+                              {language === 'zh' ? '發送重設郵件' : 'Send Reset Email'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onDirectPasswordChange(user.id)}>
+                              <Lock className="w-4 h-4 mr-2" />
+                              {language === 'zh' ? '直接更改密碼' : 'Set Password Directly'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Button
                           onClick={() => onRoleChange(user.id, !(user.isAdmin || user.is_admin))}
                           variant={(user.isAdmin || user.is_admin) ? "destructive" : "default"}
@@ -230,31 +237,87 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset }
                   </div>
                 </div>
 
-                {/* Delete Confirmation Dialog - Outside the button area */}
-                <AlertDialog open={userToDelete === user.id} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{language === 'zh' ? '確認刪除用戶' : 'Confirm User Deletion'}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {language === 'zh' ? `您確定要永久刪除用戶 ${user.name || user.full_name || user.email} 嗎？此操作無法撤銷。` : `Are you sure you want to permanently delete the user ${user.name || user.full_name || user.email}? This action cannot be undone.`}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel onClick={() => {
-                        console.log('🔵 CANCEL clicked');
-                        setUserToDelete(null);
-                      }}>
-                        {language === 'zh' ? '返回' : 'Back'}
-                      </AlertDialogCancel>
-                      <AlertDialogAction onClick={() => {
-                        console.log('🟢 CONFIRM DELETE clicked for:', user.id);
-                        handleDeleteUser(user.id);
-                      }}>
-                        {language === 'zh' ? '確認刪除' : 'Confirm Delete'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                {/* Package Balances Section */}
+                <div className="border-t border-amber-200 pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* BR15 Package */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                      <p className="text-sm font-medium text-blue-600 mb-1">
+                        BR 15 {language === 'zh' ? '小時' : 'Hours'}
+                      </p>
+                      <p className="text-3xl font-bold text-blue-700">
+                        {user.br15_balance || 0}
+                      </p>
+                      {user.br15_expiry && (
+                        <p className="text-xs text-blue-600 mt-2">
+                          {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(user.br15_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* BR30 Package */}
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                      <p className="text-sm font-medium text-purple-600 mb-1">
+                        BR 30 {language === 'zh' ? '小時' : 'Hours'}
+                      </p>
+                      <p className="text-3xl font-bold text-purple-700">
+                        {user.br30_balance || 0}
+                      </p>
+                      {user.br30_expiry && (
+                        <p className="text-xs text-purple-600 mt-2">
+                          {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(user.br30_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* DP20 Package */}
+                    <div className="bg-gradient-to-br from-green-50 to-teal-100 p-4 rounded-lg border border-green-200">
+                      <p className="text-sm font-medium text-green-600 mb-1">
+                        DP20 {language === 'zh' ? '日' : 'Days'}
+                      </p>
+                      <p className="text-3xl font-bold text-green-700">
+                        {user.dp20_balance || 0}
+                      </p>
+                      {user.dp20_expiry && (
+                        <p className="text-xs text-green-600 mt-2">
+                          {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                          {new Date(user.dp20_expiry) < new Date() && (
+                            <span className="ml-2 text-red-600 font-semibold">
+                              ({language === 'zh' ? '已過期' : 'Expired'})
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delete Confirmation Dialog - Outside the card content area */}
+              <AlertDialog open={userToDelete === user.id} onOpenChange={(open) => !open && setUserToDelete(null)}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{language === 'zh' ? '確認刪除用戶' : 'Confirm User Deletion'}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {language === 'zh' ? `您確定要永久刪除用戶 ${user.name || user.full_name || user.email} 嗎？此操作無法撤銷。` : `Are you sure you want to permanently delete the user ${user.name || user.full_name || user.email}? This action cannot be undone.`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => {
+                      console.log('🔵 CANCEL clicked');
+                      setUserToDelete(null);
+                    }}>
+                      {language === 'zh' ? '返回' : 'Back'}
+                    </AlertDialogCancel>
+                    <AlertDialogAction onClick={() => {
+                      console.log('🟢 CONFIRM DELETE clicked for:', user.id);
+                      handleDeleteUser(user.id);
+                    }}>
+                      {language === 'zh' ? '確認刪除' : 'Confirm Delete'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </motion.div>
           ))
         )}

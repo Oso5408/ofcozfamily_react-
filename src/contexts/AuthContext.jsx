@@ -649,6 +649,11 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (userId, oldPassword, newPassword) => {
     try {
+      // Validate new password length
+      if (newPassword.length < 6) {
+        return { success: false, error: 'Password must be at least 6 characters long' };
+      }
+
       // First verify old password by attempting to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email,

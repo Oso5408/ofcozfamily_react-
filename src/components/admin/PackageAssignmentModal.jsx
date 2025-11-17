@@ -26,13 +26,21 @@ export const PackageAssignmentModal = ({
   userId,
   userName,
   language,
-  mode = 'add' // 'add' or 'deduct'
+  mode = 'add', // 'add' or 'deduct'
+  selectedPackageType = '' // Pre-selected package type
 }) => {
-  const [packageType, setPackageType] = useState('');
+  const [packageType, setPackageType] = useState(selectedPackageType);
   const [quantity, setQuantity] = useState(1);
   const [expiry, setExpiry] = useState('');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Update packageType when selectedPackageType changes
+  React.useEffect(() => {
+    if (selectedPackageType) {
+      setPackageType(selectedPackageType);
+    }
+  }, [selectedPackageType, isOpen]);
 
   const handleSubmit = async () => {
     if (!packageType) return;
@@ -96,16 +104,31 @@ export const PackageAssignmentModal = ({
             <Label className="text-amber-800">
               {language === 'zh' ? '代幣 *' : 'Package *'}
             </Label>
-            <Select value={packageType} onValueChange={setPackageType}>
-              <SelectTrigger className="border-amber-200 focus:border-amber-400">
-                <SelectValue placeholder={language === 'zh' ? '請選擇' : 'Please select'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BR15">BR15 ({language === 'zh' ? '15次預約/套票' : '15 bookings per package'})</SelectItem>
-                <SelectItem value="BR30">BR30 ({language === 'zh' ? '30次預約/套票' : '30 bookings per package'})</SelectItem>
-                <SelectItem value="DP20">DP20 ({language === 'zh' ? '20次入場 (90日有效)' : '20 visits (90-day validity)'})</SelectItem>
-              </SelectContent>
-            </Select>
+            {selectedPackageType ? (
+              // Show selected package type as disabled select with only one option
+              <Select value={packageType} onValueChange={setPackageType} disabled>
+                <SelectTrigger className="border-amber-200 focus:border-amber-400 bg-gray-50">
+                  <SelectValue placeholder={language === 'zh' ? '請選擇' : 'Please select'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedPackageType === 'BR15' && <SelectItem value="BR15">BR15 ({language === 'zh' ? '15次預約/套票' : '15 bookings per package'})</SelectItem>}
+                  {selectedPackageType === 'BR30' && <SelectItem value="BR30">BR30 ({language === 'zh' ? '30次預約/套票' : '30 bookings per package'})</SelectItem>}
+                  {selectedPackageType === 'DP20' && <SelectItem value="DP20">DP20 ({language === 'zh' ? '20次入場 (90日有效)' : '20 visits (90-day validity)'})</SelectItem>}
+                </SelectContent>
+              </Select>
+            ) : (
+              // Show all package types when no pre-selection
+              <Select value={packageType} onValueChange={setPackageType}>
+                <SelectTrigger className="border-amber-200 focus:border-amber-400">
+                  <SelectValue placeholder={language === 'zh' ? '請選擇' : 'Please select'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BR15">BR15 ({language === 'zh' ? '15次預約/套票' : '15 bookings per package'})</SelectItem>
+                  <SelectItem value="BR30">BR30 ({language === 'zh' ? '30次預約/套票' : '30 bookings per package'})</SelectItem>
+                  <SelectItem value="DP20">DP20 ({language === 'zh' ? '20次入場 (90日有效)' : '20 visits (90-day validity)'})</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Quantity Input - Only show after package is selected */}
@@ -134,7 +157,7 @@ export const PackageAssignmentModal = ({
               {mode === 'add' && (
                 <div className="space-y-2">
                   <Label className="text-amber-800">
-                    {language === 'zh' ? '有效期 *' : 'Expiry *'}
+                    {language === 'zh' ? '有效期' : 'Expiry'}
                   </Label>
                   <DatePicker
                     value={expiry}
@@ -143,7 +166,7 @@ export const PackageAssignmentModal = ({
                     className="border-amber-200 focus:border-amber-400 w-full"
                   />
                   <p className="text-xs text-amber-600">
-                    {language === 'zh' ? '選擇套票的到期日期' : 'Select the expiry date for the package'}
+                    {language === 'zh' ? '選擇套票的到期日期（選填）' : 'Select the expiry date for the package (optional)'}
                   </p>
                 </div>
               )}
@@ -176,7 +199,7 @@ export const PackageAssignmentModal = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!packageType || isSubmitting || (mode === 'add' && !expiry)}
+            disabled={!packageType || isSubmitting}
             className={mode === 'deduct'
               ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white'
               : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white'}

@@ -6,64 +6,61 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Mail } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { findUserByEmail } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const user = findUserByEmail(email);
+    try {
+      // Send password reset email via Supabase (using Resend)
+      const redirectUrl = `${window.location.origin}/#/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
 
-    if (user) {
-        // In a real app, this would trigger a secure email with a unique token.
-        // For this simulation, we'll store the token and email in localStorage.
-        const resetToken = Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('password_reset_token', JSON.stringify({ email, token: resetToken, expires: Date.now() + 3600000 })); // 1 hour expiry
+      if (error) {
+        console.error('Error sending reset email:', error);
+        // Don't throw - show generic success message for security
+      }
 
-        toast({
-            title: language === 'zh' ? '重設郵件已發送' : 'Reset Email Sent',
-            description: language === 'zh' ? '如果帳戶存在，我們已發送密碼重設連結到您的郵箱。' : 'If an account exists, we have sent a password reset link to your email.',
-        });
+      // Show success message (intentionally vague for security)
+      toast({
+        title: language === 'zh' ? '✅ 重設郵件已發送' : '✅ Reset Email Sent',
+        description: language === 'zh'
+          ? '如果帳戶存在，我們已發送密碼重設連結到您的郵箱。請檢查您的電郵（包括垃圾郵件夾）。'
+          : 'If an account exists, we have sent a password reset link to your email. Please check your inbox (and spam folder).',
+      });
 
-        console.log(`--- SIMULATING PASSWORD RESET EMAIL ---
-To: ${email}
-Subject: Reset Your Ofcoz Family Password
-Body: 
-Hi,
+      console.log('✅ Password reset email sent via Resend');
+      navigate('/login');
+    } catch (error) {
+      console.error('Error in password reset:', error);
 
-To reset your password, click this link: ${window.location.origin}/#/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}
+      // Show generic success message even on error (security best practice)
+      toast({
+        title: language === 'zh' ? '✅ 重設郵件已發送' : '✅ Reset Email Sent',
+        description: language === 'zh'
+          ? '如果帳戶存在，我們已發送密碼重設連結到您的郵箱。'
+          : 'If an account exists, we have sent a password reset link to your email.',
+      });
 
-This link will expire in 1 hour.
-
-If you did not request a password reset, please ignore this email.
-
-Best,
-The Ofcoz Family Team
-------------------------`);
-        
-        navigate('/login');
-    } else {
-        toast({
-            title: language === 'zh' ? '重設郵件已發送' : 'Reset Email Sent',
-            description: language === 'zh' ? '如果帳戶存在，我們已發送密碼重設連結到您的郵箱。' : 'If an account exists, we have sent a password reset link to your email.',
-        });
-        navigate('/login');
+      navigate('/login');
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (

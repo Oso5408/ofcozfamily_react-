@@ -74,8 +74,7 @@ export const generateTimeOptions = async (date, roomId, bookingIdToExclude = nul
       const hkNow = getHongKongTime();
       const currentHour = hkNow.getHours();
       const currentMinute = hkNow.getMinutes();
-      // Add 30-minute buffer to prevent last-second bookings
-      currentTotalMinutes = currentHour * 60 + currentMinute + 30;
+      currentTotalMinutes = currentHour * 60 + currentMinute;
     }
 
     const options = [];
@@ -220,8 +219,9 @@ export const generateEndTimeOptions = async (date, roomId, startTime, bookingIdT
       maxTotalMinutes = 22 * 60; // 22:00
     }
 
-    // Generate end time options in 30-minute increments from start+60min (1 hour minimum) to max
-    for (let totalMinutes = startTotalMinutes + 60; totalMinutes <= maxTotalMinutes; totalMinutes += 30) {
+    // Generate end time options in 60-minute increments from start+60min (1 hour minimum) to max
+    // This maintains alignment: if start is :00, only show :00 times; if start is :30, only show :30 times
+    for (let totalMinutes = startTotalMinutes + 60; totalMinutes <= maxTotalMinutes; totalMinutes += 60) {
       const hour = Math.floor(totalMinutes / 60);
       const minute = totalMinutes % 60;
       const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;

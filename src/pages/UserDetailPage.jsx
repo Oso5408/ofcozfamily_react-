@@ -31,6 +31,7 @@ export const UserDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'deduct'
+  const [selectedPackageType, setSelectedPackageType] = useState(''); // Pre-selected package type
   const [isBookingExpanded, setIsBookingExpanded] = useState(true);
   const [isPackageExpanded, setIsPackageExpanded] = useState(true);
   const [bookingStartDate, setBookingStartDate] = useState('');
@@ -670,48 +671,166 @@ export const UserDetailPage = () => {
 
               {isPackageExpanded && (
                 <>
-                  {/* Package Type Selector and Balance Display */}
+                  {/* Package Balances Display */}
                   <div className="mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="text-sm text-amber-600 mb-2">{language === 'zh' ? '代幣' : 'Package'}</p>
-                        <div className="flex items-center gap-4">
-                          <span className="text-lg font-semibold text-amber-800">
-                            BR 30 {language === 'zh' ? '小時' : 'Hours'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-amber-600 mb-2">{language === 'zh' ? '尚餘代幣數量' : 'Remaining Balance'}</p>
-                        <p className="text-3xl font-bold text-amber-800">
-                          {(userProfile.br15_balance || 0) + (userProfile.br30_balance || 0) + (userProfile.dp20_balance || 0)}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-amber-600">
+                    <p className="text-sm text-amber-600 mb-4">
                       {language === 'zh' ? '如需增值,付款後請聯絡客服.' : 'To top up, please contact customer service after payment.'}
                     </p>
-                    <div className="flex gap-3 mt-3">
-                      <Button
-                        onClick={() => {
-                          setModalMode('add');
-                          setIsModalOpen(true);
-                        }}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        {language === 'zh' ? '增值' : 'Add'}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setModalMode('deduct');
-                          setIsModalOpen(true);
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        <Minus className="w-4 h-4 mr-1" />
-                        {language === 'zh' ? '扣除' : 'Deduct'}
-                      </Button>
+
+                    {/* Package Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      {/* BR15 Package */}
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg border-2 border-blue-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-blue-600">
+                            BR 15 {language === 'zh' ? '小時' : 'Hours'}
+                          </p>
+                          <p className="text-xs text-blue-500">
+                            {language === 'zh' ? '尚餘代幣數量' : 'Balance'}
+                          </p>
+                        </div>
+                        <p className="text-4xl font-bold text-blue-700 mb-3">
+                          {userProfile.br15_balance || 0}
+                        </p>
+                        {userProfile.br15_expiry && (
+                          <p className="text-xs text-blue-600 mb-3">
+                            {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(userProfile.br15_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                            {new Date(userProfile.br15_expiry) < new Date() && (
+                              <span className="ml-2 text-red-600 font-semibold">
+                                ({language === 'zh' ? '已過期' : 'Expired'})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('BR15');
+                              setModalMode('add');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '增值' : 'Add'}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('BR15');
+                              setModalMode('deduct');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <Minus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '扣除' : 'Deduct'}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* BR30 Package */}
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-lg border-2 border-purple-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-purple-600">
+                            BR 30 {language === 'zh' ? '小時' : 'Hours'}
+                          </p>
+                          <p className="text-xs text-purple-500">
+                            {language === 'zh' ? '尚餘代幣數量' : 'Balance'}
+                          </p>
+                        </div>
+                        <p className="text-4xl font-bold text-purple-700 mb-3">
+                          {userProfile.br30_balance || 0}
+                        </p>
+                        {userProfile.br30_expiry && (
+                          <p className="text-xs text-purple-600 mb-3">
+                            {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(userProfile.br30_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                            {new Date(userProfile.br30_expiry) < new Date() && (
+                              <span className="ml-2 text-red-600 font-semibold">
+                                ({language === 'zh' ? '已過期' : 'Expired'})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('BR30');
+                              setModalMode('add');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '增值' : 'Add'}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('BR30');
+                              setModalMode('deduct');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <Minus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '扣除' : 'Deduct'}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* DP20 Package */}
+                      <div className="bg-gradient-to-br from-green-50 to-teal-100 p-5 rounded-lg border-2 border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-green-600">
+                            DP20 {language === 'zh' ? '日' : 'Days'}
+                          </p>
+                          <p className="text-xs text-green-500">
+                            {language === 'zh' ? '尚餘代幣數量' : 'Balance'}
+                          </p>
+                        </div>
+                        <p className="text-4xl font-bold text-green-700 mb-3">
+                          {userProfile.dp20_balance || 0}
+                        </p>
+                        {userProfile.dp20_expiry && (
+                          <p className="text-xs text-green-600 mb-3">
+                            {language === 'zh' ? '有效期至' : 'Valid until'}: {new Date(userProfile.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                            {new Date(userProfile.dp20_expiry) < new Date() && (
+                              <span className="ml-2 text-red-600 font-semibold">
+                                ({language === 'zh' ? '已過期' : 'Expired'})
+                              </span>
+                            )}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('DP20');
+                              setModalMode('add');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '增值' : 'Add'}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setSelectedPackageType('DP20');
+                              setModalMode('deduct');
+                              setIsModalOpen(true);
+                            }}
+                            size="sm"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <Minus className="w-3 h-3 mr-1" />
+                            {language === 'zh' ? '扣除' : 'Deduct'}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -842,12 +961,16 @@ export const UserDetailPage = () => {
       {/* Package Assignment Modal */}
       <PackageAssignmentModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedPackageType(''); // Reset when closing
+        }}
         onSubmit={handlePackageAssignment}
         userId={userId}
         userName={userName}
         language={language}
         mode={modalMode}
+        selectedPackageType={selectedPackageType}
       />
     </>
   );
