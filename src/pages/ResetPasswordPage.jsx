@@ -27,10 +27,69 @@ export const ResetPasswordPage = () => {
 
   useEffect(() => {
     // Check for Supabase recovery session
-    // Supabase passes the token via URL hash fragments (e.g., #access_token=...)
+    // IMPORTANT: HashRouter causes URL issues with Supabase tokens
+    // URL becomes: /#/reset-password#access_token=... (double hash)
+    // Browser encodes second hash as %23, breaking automatic token parsing
     const checkSession = async () => {
       try {
-        // Supabase automatically handles the URL hash and creates a session
+        // Extract recovery token from URL (handles both # and %23 encoded hashes)
+        // The URL format is: /#/reset-password#access_token=xxx (second # may be encoded as %23)
+        const fullUrl = window.location.href;
+        const hash = window.location.hash;
+
+        console.log('🔍 Checking for recovery token in URL...');
+        console.log('Full URL:', fullUrl);
+        console.log('URL hash:', hash);
+
+        // Try to extract token parameters from URL
+        // Handle both cases: #access_token and %23access_token
+        let tokenParams = '';
+
+        // Method 1: Check if there's a %23 (URL-encoded #) in the URL
+        if (fullUrl.includes('%23access_token')) {
+          tokenParams = fullUrl.split('%23')[1];
+          console.log('Found %23 encoded token params:', tokenParams);
+        }
+        // Method 2: Check if hash contains multiple # symbols
+        else if (hash.includes('access_token')) {
+          // Split by # and get the part with access_token
+          const parts = hash.split('#');
+          tokenParams = parts.find(part => part.includes('access_token')) || '';
+          console.log('Found # token params:', tokenParams);
+        }
+
+        // Parse the token parameters
+        const params = new URLSearchParams(tokenParams);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+
+        console.log('Extracted access_token:', accessToken ? 'Found ✅' : 'Not found ❌');
+        console.log('Token type:', type);
+
+        // If we have recovery tokens, manually set the session
+        if (accessToken && type === 'recovery') {
+          console.log('🔑 Recovery token found, creating session...');
+
+          // Set the session using the tokens from URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
+          });
+
+          if (error) {
+            console.error('❌ Session creation failed:', error);
+            throw error;
+          }
+
+          if (data.session) {
+            console.log('✅ Recovery session created successfully');
+            setIsValidToken(true);
+            return;
+          }
+        }
+
+        // Fallback: Check if there's already a valid session
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
@@ -57,7 +116,7 @@ export const ResetPasswordPage = () => {
         console.error('Error checking password reset session:', error);
         toast({
           title: language === 'zh' ? '發生錯誤' : 'An error occurred',
-          description: language === 'zh' ? '請稍後再試。' : 'Please try again later.',
+          description: error.message || (language === 'zh' ? '請稍後再試。' : 'Please try again later.'),
           variant: 'destructive'
         });
         navigate('/forgot-password');
