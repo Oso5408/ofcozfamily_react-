@@ -212,7 +212,8 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                           {t.booking.calendar.addToCalendar}
                         </Button>
                       )}
-                      <Button
+                      {/* Edit Booking button hidden per user request */}
+                      {/* <Button
                         onClick={() => handleEditClick(booking)}
                         variant="outline"
                         size="sm"
@@ -220,7 +221,7 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                       >
                         <Edit className="w-4 h-4 mr-1" />
                         {t.dashboard.editBooking}
-                      </Button>
+                      </Button> */}
                       <Button
                         onClick={() => handleCancelClick(booking)}
                         variant="outline"

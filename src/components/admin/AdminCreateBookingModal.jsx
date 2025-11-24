@@ -23,7 +23,7 @@ import { availableDatesService } from '@/services/availableDatesService';
 
 export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBookingCreated }) => {
   const { language } = useLanguage();
-  const { user: admin } = useAuth();
+  const { user: admin, updateUserTokens, deductBRBalance, deductDP20Balance } = useAuth();
   const t = translations[language];
   const { toast } = useToast();
 
@@ -173,6 +173,22 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
     return endTotalMinutes - startTotalMinutes;
   };
 
+  // Calculate hours for token/BR deduction (1 hour = 1 token/BR)
+  const calculateHours = () => {
+    if (!bookingData.startTime || !bookingData.endTime) return 0;
+
+    const [startHourStr, startMinuteStr] = bookingData.startTime.split(':');
+    const startHour = parseInt(startHourStr);
+    const startMinute = parseInt(startMinuteStr || '0');
+
+    const [endHourStr, endMinuteStr] = bookingData.endTime.split(':');
+    const endHour = parseInt(endHourStr);
+    const endMinute = parseInt(endMinuteStr || '0');
+
+    const durationHours = (endHour + endMinute / 60) - (startHour + startMinute / 60);
+    return Math.max(0, durationHours);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -219,6 +235,140 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
       // Prepare booking data
       const startDateTime = new Date(`${bookingData.date}T${bookingData.startTime}:00`);
       const endDateTime = new Date(`${bookingData.date}T${bookingData.endTime}:00`);
+      const totalCost = calculatePrice(); // Cash price (for display and cash bookings)
+      const requiredHours = calculateHours(); // Hours needed for token/BR deduction (1 hour = 1 token/BR)
+
+      // ===== TOKEN/PACKAGE DEDUCTION LOGIC =====
+      // Deduct tokens/packages BEFORE creating the booking (matching user booking flow)
+      if (bookingData.paymentMethod === 'token') {
+        // Deduct regular tokens (1 hour = 1 token)
+        console.log('💳 Admin booking: Deducting regular tokens', {
+          userId: selectedUser.id,
+          hours: requiredHours,
+          cashPrice: totalCost
+        });
+
+        // Check balance first
+        if (selectedUser.tokens < requiredHours) {
+          toast({
+            title: language === 'zh' ? '代幣餘額不足' : 'Insufficient Tokens',
+            description: language === 'zh'
+              ? `用戶餘額: ${selectedUser.tokens} 代幣，需要: ${requiredHours} 代幣`
+              : `User balance: ${selectedUser.tokens} tokens, Required: ${requiredHours} tokens`,
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        const tokenResult = await updateUserTokens(selectedUser.id, requiredHours, false, `Admin booking deduction for ${selectedRoom.name}`);
+
+        if (!tokenResult) {
+          toast({
+            title: language === 'zh' ? '扣除代幣失敗' : 'Token Deduction Failed',
+            description: language === 'zh' ? '無法從用戶帳戶扣除代幣' : 'Failed to deduct tokens from user account',
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Regular tokens deducted successfully:', requiredHours, 'tokens');
+
+      } else if (bookingData.paymentMethod === 'br15' || bookingData.paymentMethod === 'br30') {
+        // Deduct BR package balance (1 hour = 1 BR)
+        const packageType = bookingData.paymentMethod === 'br15' ? 'BR15' : 'BR30';
+        const balanceField = bookingData.paymentMethod === 'br15' ? 'br15_balance' : 'br30_balance';
+        const currentBalance = selectedUser[balanceField] || 0;
+
+        console.log('💳 Admin booking: Deducting BR package', {
+          userId: selectedUser.id,
+          packageType,
+          hours: requiredHours,
+          currentBalance,
+          cashPrice: totalCost
+        });
+
+        // Check balance first
+        if (currentBalance < requiredHours) {
+          toast({
+            title: language === 'zh' ? `${packageType} 餘額不足` : `Insufficient ${packageType} Balance`,
+            description: language === 'zh'
+              ? `用戶 ${packageType} 餘額: ${currentBalance} BR，需要: ${requiredHours} BR`
+              : `User ${packageType} balance: ${currentBalance} BR, Required: ${requiredHours} BR`,
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        const brResult = await deductBRBalance(selectedUser.id, requiredHours, packageType);
+
+        if (!brResult.success) {
+          toast({
+            title: language === 'zh' ? `扣除 ${packageType} 失敗` : `${packageType} Deduction Failed`,
+            description: brResult.error || (language === 'zh' ? '無法從用戶帳戶扣除 BR' : 'Failed to deduct BR from user account'),
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ BR package deducted successfully:', requiredHours, 'BR');
+
+      } else if (bookingData.paymentMethod === 'dp20') {
+        // Deduct DP20 package balance
+        const currentBalance = selectedUser.dp20_balance || 0;
+        const expiry = selectedUser.dp20_expiry ? new Date(selectedUser.dp20_expiry) : null;
+        const isExpired = expiry && expiry < new Date();
+
+        console.log('💳 Admin booking: Deducting DP20', {
+          userId: selectedUser.id,
+          currentBalance,
+          expiry,
+          isExpired
+        });
+
+        // Check balance and expiry first
+        if (currentBalance < 1) {
+          toast({
+            title: language === 'zh' ? 'DP20 餘額不足' : 'Insufficient DP20 Balance',
+            description: language === 'zh'
+              ? `用戶 DP20 餘額: ${currentBalance} 次`
+              : `User DP20 balance: ${currentBalance} visits`,
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (isExpired) {
+          toast({
+            title: language === 'zh' ? 'DP20 已過期' : 'DP20 Expired',
+            description: language === 'zh'
+              ? `DP20 套票已於 ${expiry.toLocaleDateString('zh-HK')} 過期`
+              : `DP20 package expired on ${expiry.toLocaleDateString('en-US')}`,
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        const dp20Result = await deductDP20Balance(selectedUser.id);
+
+        if (!dp20Result.success) {
+          toast({
+            title: language === 'zh' ? '扣除 DP20 失敗' : 'DP20 Deduction Failed',
+            description: dp20Result.error || (language === 'zh' ? '無法從用戶帳戶扣除 DP20' : 'Failed to deduct DP20 from user account'),
+            variant: 'destructive'
+          });
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ DP20 deducted successfully');
+      }
+      // For 'cash' payment method, no deduction needed
 
       const bookingPayload = {
         userId: selectedUser.id,
@@ -227,7 +377,7 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
         endTime: endDateTime.toISOString(),
         bookingType: bookingData.bookingType,
         paymentMethod: bookingData.paymentMethod,
-        totalCost: calculatePrice(),
+        totalCost: totalCost,
         notes: JSON.stringify({
           name: selectedUser.full_name || selectedUser.name,
           email: selectedUser.email,
