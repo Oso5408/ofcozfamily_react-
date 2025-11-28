@@ -10,12 +10,10 @@ import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { ProfileSection } from '@/components/dashboard/ProfileSection';
 import { BookingsTab } from '@/components/dashboard/BookingsTab';
-import { TokenHistoryTab } from '@/components/dashboard/TokenHistoryTab';
 import { bookingService } from '@/services';
 import {
   ArrowLeft,
-  Calendar,
-  Package
+  Calendar
 } from 'lucide-react';
 import { ToastAction } from "@/components/ui/toast"
 
@@ -161,22 +159,10 @@ export const DashboardPage = () => {
                 <Calendar className="w-4 h-4 mr-2" />
                 {t.dashboard.myBookings}
               </Button>
-               <Button
-                onClick={() => setActiveTab('tokenHistory')}
-                variant={activeTab === 'tokenHistory' ? 'default' : 'outline'}
-                className={activeTab === 'tokenHistory'
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
-                  : 'border-amber-300 text-amber-700'
-                }
-              >
-                <Package className="w-4 h-4 mr-2" />
-                {t.dashboard.tokenHistory}
-              </Button>
             </div>
 
             <Card className="p-8 glass-effect cat-shadow border-amber-200">
-              {activeTab === 'bookings' && <BookingsTab bookings={bookings} setBookings={setBookings} onUpdateBooking={handleUpdateBooking} />}
-              {activeTab === 'tokenHistory' && <TokenHistoryTab tokenHistory={user.tokenHistory || []} />}
+              <BookingsTab bookings={bookings} setBookings={setBookings} onUpdateBooking={handleUpdateBooking} />
             </Card>
           </motion.div>
         </div>
