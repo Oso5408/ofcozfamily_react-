@@ -189,6 +189,24 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
     return Math.max(0, durationHours);
   };
 
+  // Get display cost based on payment method
+  const getDisplayCost = () => {
+    const hours = calculateHours();
+
+    switch(bookingData.paymentMethod) {
+      case 'token':
+        return `${hours} ${language === 'zh' ? '代幣' : 'tokens'}`;
+      case 'br15':
+      case 'br30':
+        return `${hours} ${language === 'zh' ? '小時' : 'hours'}`;
+      case 'dp20':
+        return `1 ${language === 'zh' ? '天' : 'day'}`;
+      case 'cash':
+      default:
+        return `$${calculatePrice()}`;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -672,7 +690,6 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="cash">{t.booking.cash}</SelectItem>
-                <SelectItem value="token">{t.booking.token}</SelectItem>
                 <SelectItem value="br15">BR15</SelectItem>
                 <SelectItem value="br30">BR30</SelectItem>
                 <SelectItem value="dp20">DP20</SelectItem>
@@ -772,8 +789,12 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
           {bookingData.startTime && bookingData.endTime && (
             <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-amber-800">{language === 'zh' ? '總價:' : 'Total Price:'}</span>
-                <span className="text-2xl font-bold text-amber-900">${calculatePrice()}</span>
+                <span className="font-semibold text-amber-800">
+                  {bookingData.paymentMethod === 'cash'
+                    ? (language === 'zh' ? '總價:' : 'Total Price:')
+                    : (language === 'zh' ? '需要:' : 'Required:')}
+                </span>
+                <span className="text-2xl font-bold text-amber-900">{getDisplayCost()}</span>
               </div>
             </div>
           )}
