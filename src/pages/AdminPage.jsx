@@ -391,6 +391,9 @@ export const AdminPage = () => {
 
   const filteredBookings = bookings.filter(booking => {
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'pending_cancellation_review') {
+      return booking.status === 'cancelled' && !booking.cancellation_reviewed;
+    }
     return booking.status === filterStatus;
   });
 

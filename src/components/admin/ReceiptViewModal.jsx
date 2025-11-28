@@ -13,6 +13,11 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
   const [receiptUrl, setReceiptUrl] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Drag/Pan state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   // Generate signed URL when modal opens
   useEffect(() => {
     const loadReceiptUrl = async () => {
@@ -46,11 +51,52 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
     }
   }, [isOpen, booking]);
 
+  // Reset position when zoom changes
+  useEffect(() => {
+    setPosition({ x: 0, y: 0 });
+  }, [zoom]);
+
+  // Reset everything when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setZoom(1);
+      setPosition({ x: 0, y: 0 });
+      setIsDragging(false);
+    }
+  }, [isOpen]);
+
   if (!booking) return null;
 
   // For token/DP20 bookings, no receipt is needed
   const isTokenPayment = booking.paymentMethod === 'token' || booking.paymentMethod === 'dp20';
   const hasReceipt = !!booking.receipt_url;
+
+  // Drag event handlers
+  const handleMouseDown = (e) => {
+    // Allow dragging at all zoom levels
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    });
+    e.preventDefault(); // Prevent text selection
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
 
   const handleDownload = () => {
     if (receiptUrl) {
@@ -164,12 +210,26 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
                 title="Receipt PDF"
               />
             ) : (
-              <div className="overflow-auto h-full flex items-center justify-center p-4">
+              <div
+                className="overflow-hidden h-full flex items-center justify-center p-4 select-none"
+                style={{
+                  cursor: isDragging ? 'grabbing' : 'grab'
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+              >
                 <img
                   src={receiptUrl}
                   alt="Receipt"
-                  style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
-                  className="max-w-full h-auto transition-transform"
+                  style={{
+                    transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
+                    transformOrigin: 'center',
+                    transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                  }}
+                  className="max-w-full h-auto"
+                  draggable={false}
                 />
               </div>
             )}

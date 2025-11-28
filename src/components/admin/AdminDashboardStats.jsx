@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Users, Calendar, CheckCircle, XCircle, Clock, Eye, EyeOff } from 'lucide-react';
+import { Users, Calendar, CheckCircle, XCircle, Clock, Eye, EyeOff, Bell } from 'lucide-react';
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from '@/components/ui/use-toast';
@@ -57,6 +57,13 @@ export const AdminDashboardStats = ({ bookings, users, setFilterStatus, rooms, o
       filter: 'cancelled'
     },
     {
+      title: language === 'zh' ? '待確認取消' : 'Pending Cancellation',
+      value: safeBookings.filter(b => b.status === 'cancelled' && !b.cancellation_reviewed).length,
+      icon: Bell,
+      color: 'from-orange-400 to-orange-600',
+      filter: 'pending_cancellation_review'
+    },
+    {
       title: language === 'zh' ? '註冊用戶' : 'Registered Users',
       value: safeUsers.length,
       icon: Users,
@@ -67,7 +74,7 @@ export const AdminDashboardStats = ({ bookings, users, setFilterStatus, rooms, o
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
         {stats.map((stat, index) => (
           <button
             key={index}

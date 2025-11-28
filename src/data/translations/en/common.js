@@ -44,6 +44,7 @@ export const common = {
     descriptionTitle: "Space Introduction:",
     bookButton: "Book This Room 🐾",
     bookButtonDayPass: "Book This Lobby 🐾",
+    bookButtonPackage: "Purchase This Package 💰",
     night: "/night",
     reviews: "reviews",
     roomNames: {
@@ -57,7 +58,8 @@ export const common = {
       "Room H": "Room H",
       "One Day Pass": "One Day Pass",
       "Lobby Seat": "Lobby Seat",
-      "Day Pass": "Day Pass"
+      "Day Pass": "Day Pass",
+      "DP20 Package": "DP20 Package"
     },
     roomDescriptions: {
       "Room A": `*Workspace is approx. 60 sq. ft., suitable for 1-6 people.
@@ -116,7 +118,14 @@ export const common = {
 *Single visit: $100 per person.
 *Limited to 1 person per booking.
 *Perfect for self-study, working, or enjoying time with our cats in a shared space.
-*Please be considerate of other guests and maintain a quiet environment.`
+*Please be considerate of other guests and maintain a quiet environment.`,
+      "DP20PackageDescription": `*DP20 Day Pass Package: 20 visits for HK$1,000.
+*Validity: Must be used within 90 days from purchase date.
+*Usage: Valid for Lobby Seat Day Pass only.
+*Operating Hours: 10:00 AM - 6:30 PM (10:00-18:30).
+*Terms: Each visit limited to 1 person, advance booking required.
+*Purchase: Fill in details and upload payment receipt, admin will assign package after confirmation.
+*Great Value: Only $50 per visit on average, save 50% compared to single purchase ($100)!`
     },
     roomFeatures: {
       "Cat-friendly furniture": "Cat-friendly furniture",
@@ -133,7 +142,11 @@ export const common = {
       "Cozy reading nook": "Cozy reading nook",
       "TV": "TV",
       "Hall seat": "Hall seat",
-      "Access to public facilities": "Access to public facilities"
+      "Access to public facilities": "Access to public facilities",
+      "20 Day Pass visits": "20 Day Pass visits",
+      "90 days validity": "90 days validity",
+      "Lobby Seat access": "Lobby Seat access",
+      "Flexible scheduling": "Flexible scheduling"
     },
     terms: {
       title: "Ofcoz Family Terms and Conditions of Use",
