@@ -999,7 +999,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
               </div>
               {booking.purpose && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg">
-                  <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '預約目的：' : 'Purpose: '}</strong>{booking.purpose}</p>
+                  <p className="text-sm text-amber-700"><strong>{t.booking.purpose}: </strong>{booking.purpose}</p>
                 </div>
               )}
               {booking.equipment && booking.equipment.length > 0 && (

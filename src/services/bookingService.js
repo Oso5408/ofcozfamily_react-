@@ -208,7 +208,7 @@ export const bookingService = {
         .from('bookings')
         .update(updates)
         .eq('id', bookingId)
-        .select()
+        .select('*, rooms(*), users!bookings_user_id_fkey(*)')
         .single();
 
       if (error) throw error;
@@ -267,7 +267,7 @@ export const bookingService = {
           cancellation_reason: reason
         })
         .eq('id', bookingId)
-        .select()
+        .select('*, rooms(*), users!bookings_user_id_fkey(*)')
         .single();
 
       if (updateError) throw updateError;
@@ -342,7 +342,7 @@ export const bookingService = {
           cancellation_reason: reason
         })
         .eq('id', bookingId)
-        .select()
+        .select('*, rooms(*), users!bookings_user_id_fkey(*)')
         .single();
 
       if (updateError) throw updateError;

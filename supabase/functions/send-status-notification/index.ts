@@ -78,7 +78,7 @@ const getReceiptReceivedHtml = (language: string, booking: any, roomName: string
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">服務：</span>
+          <span class="detail-label">房間：</span>
           <span>${roomName}</span>
         </div>
         <div class="detail-row">
@@ -149,7 +149,7 @@ const getReceiptReceivedHtml = (language: string, booking: any, roomName: string
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Service:</span>
+          <span class="detail-label">Room:</span>
           <span>${roomName}</span>
         </div>
         <div class="detail-row">
@@ -229,7 +229,7 @@ const getPaymentConfirmedHtml = (language: string, booking: any, roomName: strin
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">服務：</span>
+          <span class="detail-label">房間：</span>
           <span>${roomName}</span>
         </div>
         <div class="detail-row">
@@ -305,7 +305,7 @@ const getPaymentConfirmedHtml = (language: string, booking: any, roomName: strin
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Service:</span>
+          <span class="detail-label">Room:</span>
           <span>${roomName}</span>
         </div>
         <div class="detail-row">

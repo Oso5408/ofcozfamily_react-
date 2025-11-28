@@ -67,7 +67,7 @@ const getEmailHtml = (language: string, booking: any, roomNameTranslated: string
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">服務：</span>
+          <span class="detail-label">房間：</span>
           <span>${roomNameTranslated}</span>
         </div>
         <div class="detail-row">
@@ -140,7 +140,7 @@ const getEmailHtml = (language: string, booking: any, roomNameTranslated: string
           <span>#${booking.receiptNumber}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Service:</span>
+          <span class="detail-label">Room:</span>
           <span>${roomNameTranslated}</span>
         </div>
         <div class="detail-row">
