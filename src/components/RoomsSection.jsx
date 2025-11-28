@@ -10,8 +10,9 @@ import { roomsData } from '@/data/roomsData';
 import { useNavigate } from 'react-router-dom';
 import { roomService } from '@/services/roomService';
 import { LoginPromptModal } from '@/components/LoginPromptModal';
+import { DP20PurchaseModal } from '@/components/DP20PurchaseModal';
 
-const RoomCard = ({ room, index, t, language, onBookingClick }) => {
+const RoomCard = ({ room, index, t, language, onBookingClick, onPackagePurchaseClick }) => {
   const [reviews, setReviews] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
@@ -43,7 +44,12 @@ const RoomCard = ({ room, index, t, language, onBookingClick }) => {
   const rating = getRoomRating();
 
   const handleBookingClick = () => {
-    onBookingClick(room.id);
+    // Check if this is a package purchase (like DP20)
+    if (room.isPackage) {
+      onPackagePurchaseClick(room);
+    } else {
+      onBookingClick(room.id);
+    }
   };
 
   const nextImage = (e) => {
@@ -151,7 +157,11 @@ const RoomCard = ({ room, index, t, language, onBookingClick }) => {
             className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white mt-auto"
             onClick={handleBookingClick}
           >
-            {room.id === 9 ? t.rooms.bookButtonDayPass : t.rooms.bookButton}
+            {room.isPackage
+              ? t.rooms.bookButtonPackage
+              : room.id === 9
+              ? t.rooms.bookButtonDayPass
+              : t.rooms.bookButton}
           </Button>
         </div>
       </Card>
@@ -184,6 +194,8 @@ export const RoomsSection = () => {
   const [loading, setLoading] = useState(true);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [pendingBookingUrl, setPendingBookingUrl] = useState('');
+  const [showDP20Modal, setShowDP20Modal] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState(null);
 
   // Fetch rooms from Supabase
   useEffect(() => {
@@ -193,7 +205,10 @@ export const RoomsSection = () => {
         const result = await roomService.getRooms(user?.isAdmin || user?.is_admin);
 
         if (result.success) {
-          setRooms(result.rooms);
+          // Merge Supabase rooms with local package data (like DP20)
+          const localPackages = roomsData.filter(room => room.isPackage);
+          const mergedRooms = [...result.rooms, ...localPackages];
+          setRooms(mergedRooms);
         } else {
           console.warn('⚠️ Failed to load rooms from Supabase, using local data');
           setRooms(roomsData);
@@ -226,6 +241,18 @@ export const RoomsSection = () => {
     }
   };
 
+  // Handle package purchase click - open DP20 modal
+  const handlePackagePurchaseClick = (packageRoom) => {
+    if (!user) {
+      // User is not logged in, show login prompt
+      setShowLoginPrompt(true);
+    } else {
+      // User is logged in, show DP20 purchase modal
+      setSelectedPackage(packageRoom);
+      setShowDP20Modal(true);
+    }
+  };
+
   if (loading) {
     return (
       <section id="rooms" className="py-16 px-4">
@@ -251,15 +278,15 @@ export const RoomsSection = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            {/* Lobby Seat Section */}
-            {visibleRooms.some(room => room.id === 9) && (
+            {/* Lobby Seat & Packages Section */}
+            {visibleRooms.some(room => room.id === 9 || room.isPackage) && (
               <div className="mb-12">
                 <h3 className="text-2xl font-bold text-amber-800 mb-6 text-center">
                   {language === 'zh' ? '預約' : 'Booking'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {visibleRooms
-                    .filter(room => room.id === 9)
+                    .filter(room => room.id === 9 || room.isPackage)
                     .map((room, index) => (
                       <RoomCard
                         room={room}
@@ -268,6 +295,7 @@ export const RoomsSection = () => {
                         t={t}
                         language={language}
                         onBookingClick={handleBookingClick}
+                        onPackagePurchaseClick={handlePackagePurchaseClick}
                       />
                     ))}
                 </div>
@@ -277,7 +305,7 @@ export const RoomsSection = () => {
             {/* Other Rooms - No title */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {visibleRooms
-                .filter(room => room.id !== 9)
+                .filter(room => room.id !== 9 && !room.isPackage)
                 .map((room, index) => (
                   <RoomCard
                     room={room}
@@ -286,6 +314,7 @@ export const RoomsSection = () => {
                     t={t}
                     language={language}
                     onBookingClick={handleBookingClick}
+                    onPackagePurchaseClick={handlePackagePurchaseClick}
                   />
                 ))}
             </div>
@@ -300,6 +329,15 @@ export const RoomsSection = () => {
           isOpen={showLoginPrompt}
           onClose={() => setShowLoginPrompt(false)}
           returnUrl={pendingBookingUrl}
+        />
+
+        {/* DP20 Purchase Modal */}
+        <DP20PurchaseModal
+          isOpen={showDP20Modal}
+          onClose={() => {
+            setShowDP20Modal(false);
+            setSelectedPackage(null);
+          }}
         />
       </div>
     </section>

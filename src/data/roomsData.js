@@ -106,5 +106,19 @@ export const roomsData = [
     bookingOptions: ['cash', 'dp20'],
     prices: { cash: { daily: 100 }, dp20: { perVisit: 1 } },
     hidden: false,
+  },
+  {
+    id: 10,
+    name: 'DP20 Package',
+    capacity: 1,
+    type: 'package',
+    features: ['20 Day Pass visits', '90 days validity', 'Lobby Seat access', 'Flexible scheduling'],
+    image: 'Day Pass package - 20 visits with extended validity',
+    size: 'N/A',
+    description: 'DP20PackageDescription',
+    bookingOptions: ['cash'],
+    prices: { cash: { package: 1000 } },
+    hidden: false,
+    isPackage: true, // Flag to identify this as a package purchase
   }
 ];
