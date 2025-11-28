@@ -57,6 +57,10 @@ export const bookingService = {
           total_cost: bookingData.totalCost,
           status: bookingData.status || 'pending',
           notes: bookingData.notes,
+          equipment: bookingData.equipment || [],
+          purpose: bookingData.purpose,
+          guests: bookingData.guests || 1,
+          special_requests: bookingData.specialRequests,
         })
         .select()
         .single();
@@ -736,6 +740,10 @@ export const bookingService = {
         total_cost: bookingData.totalCost,
         status: 'confirmed', // Auto-confirm for admin bookings
         notes: bookingData.notes,
+        equipment: bookingData.equipment || [],
+        purpose: bookingData.purpose,
+        guests: bookingData.guests || 1,
+        special_requests: bookingData.specialRequests,
       };
 
       // Add created_by_admin if the column exists (for tracking purposes)

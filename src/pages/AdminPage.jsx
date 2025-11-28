@@ -41,12 +41,12 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const AdminPage = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [bookings, setBookings] = useState([]);
   const [users, setUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -60,11 +60,17 @@ export const AdminPage = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  
+
   const { updateUserRole, adminResetPassword } = useAuth();
 
 
   useEffect(() => {
+    // Don't check auth while still loading
+    if (isLoading) {
+      console.log('⏳ Auth still loading, waiting...');
+      return;
+    }
+
     console.log('🔒 AdminPage access check:', {
       user,
       'user.isAdmin': user?.isAdmin,
@@ -136,7 +142,7 @@ export const AdminPage = () => {
     };
 
     loadAdminData();
-  }, [user, navigate, language, toast]);
+  }, [user, navigate, language, toast, isLoading]);
 
   const handleRoleChange = (userId, newIsAdmin) => {
     updateUserRole(userId, newIsAdmin);
@@ -413,6 +419,19 @@ export const AdminPage = () => {
     navigate('/');
   };
 
+  // Show loading state while auth is initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+          <p className="text-amber-700">{language === 'zh' ? '載入中...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not admin (will be redirected by useEffect)
   if (!user || (!user.isAdmin && !user.is_admin)) return null;
 
   return (

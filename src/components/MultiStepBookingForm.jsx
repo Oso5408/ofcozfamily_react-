@@ -496,8 +496,8 @@ export const MultiStepBookingForm = ({
                   checked={isChecked}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      // Add equipment with default quantity 1
-                      const newEquipment = [...(bookingData.equipment || []), { type: key, quantity: 1 }];
+                      // Add equipment with no default quantity (null - user will type)
+                      const newEquipment = [...(bookingData.equipment || []), { type: key, quantity: null }];
                       setBookingData({ ...bookingData, equipment: newEquipment });
                     } else {
                       // Remove equipment
@@ -510,21 +510,56 @@ export const MultiStepBookingForm = ({
                   {label}
                 </Label>
                 {isChecked && (
-                  <Input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={equipmentItem?.quantity || 1}
-                    onChange={(e) => {
-                      const newQuantity = parseInt(e.target.value) || 1;
-                      const newEquipment = (bookingData.equipment || []).map(item =>
-                        item.type === key ? { ...item, quantity: newQuantity } : item
-                      );
-                      setBookingData({ ...bookingData, equipment: newEquipment });
-                    }}
-                    placeholder={t.booking.equipmentQuantity}
-                    className="w-24 border-amber-200 focus:border-amber-400"
-                  />
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const currentQty = equipmentItem?.quantity || 0;
+                        const newQuantity = Math.max(1, currentQty - 1);
+                        const newEquipment = (bookingData.equipment || []).map(item =>
+                          item.type === key ? { ...item, quantity: newQuantity } : item
+                        );
+                        setBookingData({ ...bookingData, equipment: newEquipment });
+                      }}
+                      className="h-8 w-8 p-0 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      −
+                    </Button>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={equipmentItem?.quantity || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const newQuantity = value === '' ? null : parseInt(value);
+                        const newEquipment = (bookingData.equipment || []).map(item =>
+                          item.type === key ? { ...item, quantity: newQuantity } : item
+                        );
+                        setBookingData({ ...bookingData, equipment: newEquipment });
+                      }}
+                      placeholder="1"
+                      className="w-16 text-center border-amber-200 focus:border-amber-400"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const currentQty = equipmentItem?.quantity || 0;
+                        const newQuantity = Math.min(50, currentQty + 1);
+                        const newEquipment = (bookingData.equipment || []).map(item =>
+                          item.type === key ? { ...item, quantity: newQuantity } : item
+                        );
+                        setBookingData({ ...bookingData, equipment: newEquipment });
+                      }}
+                      className="h-8 w-8 p-0 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      +
+                    </Button>
+                  </div>
                 )}
               </div>
             );

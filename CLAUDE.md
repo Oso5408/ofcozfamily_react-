@@ -39,7 +39,7 @@ React-based cat cafe booking and e-commerce web application with bilingual suppo
 - **Pages**: `src/pages/` - Main application pages (HomePage, BookingPage, DashboardPage, AdminPage, etc.)
 - **Components**: `src/components/` - Reusable components organized by feature
   - `admin/` - Admin-specific components
-  - `dashboard/` - User dashboard components  
+  - `dashboard/` - User dashboard components
   - `ui/` - Base UI components (shadcn/ui style)
 - **Data**: `src/data/` - Static data and translations
   - `translations/` - Bilingual content organized by feature
@@ -81,8 +81,14 @@ All routes use HashRouter for client-side routing:
 - `/booking/:roomId` - Room booking
 - `/dashboard` - User dashboard
 - `/admin` - Admin panel
+- `/admin/users/:userId` - Admin user detail page
 - `/pricing` - Pricing information
-- Authentication routes (login, register, password reset)
+- `/auth/callback` - OAuth callback handler
+- `/auth/confirm` - Email confirmation handler
+- Authentication routes (login, register, forgot-password, reset-password)
+
+**Missing Route (Known Issue):**
+- `/admin/daily-bookings/:date` - Not yet added to App.jsx (see "Incomplete Features" section)
 
 ### Visual Editor Integration
 The project includes custom Vite plugins for visual editing capabilities (development only):
@@ -123,6 +129,10 @@ All backend interactions **MUST** go through service modules in `src/services/`:
 | `storageService` | File uploads | `uploadImage()`, `uploadVideo()`, `uploadReceipt()` |
 | `emailService` | Email notifications | `sendBookingConfirmation()`, `sendCancellationEmail()` |
 | `cancellationPolicyService` | Cancellation logic | `calculateRefund()`, `getCancellationPolicy()` |
+| `availableDatesService` | Available dates management | CRUD operations for room available dates |
+| `packagePurchaseService` | Package purchases | Track DP20 and BR package purchases |
+| `blockedDatesService` | Blocked dates management | CRUD operations for blocked dates |
+| `auditService` | Admin action logging | Log and retrieve admin actions |
 
 **Critical Rules:**
 1. **NEVER** use `supabase.from()` directly in components - always use services
@@ -140,6 +150,10 @@ All backend interactions **MUST** go through service modules in `src/services/`:
 - **products** - E-commerce items (id, name, price, category, stock_quantity)
 - **orders** - Purchase orders (id, user_id, total_amount, status)
 - **order_items** - Order line items (id, order_id, product_id, quantity, price)
+- **blocked_dates** - Date ranges when rooms are unavailable
+- **available_dates** - Specific dates when rooms are available (overrides default)
+- **package_purchases** - Tracks DP20 and BR package purchases with receipt uploads
+- **admin_audit_log** - Logs all admin actions for accountability
 
 ### Important Database Concepts
 1. **Row Level Security (RLS)**: All tables have RLS policies. Users can only see/modify their own data; admins have broader access.
@@ -465,14 +479,31 @@ The `supabase/` directory contains incremental migration files:
 - `booking-payment-fields.sql` - Payment tracking and receipt upload
 - `add-cancellation-feature.sql` - Booking cancellation and refund logic
 - `setup-room-images-storage.sql` + `setup-video-storage.sql` - File storage buckets
+- `add-blocked-dates.sql` - Blocked dates management
+- `add-available-dates.sql` - Available dates override system
+- `add-dp20-purchase-tracking.sql` - Package purchase tracking with receipts
+- `add-admin-audit-log.sql` - Admin action logging
+- `add-token-refund-functions.sql` - Token refund logic for cancellations
 
 **Policy Fixes:**
 - `check-and-fix-users-update-policy.sql` - Enable user profile editing
 - `add-users-delete-policy.sql` - Enable admin user deletion
 - `add-admin-booking-update-policy.sql` - Enable admin booking edits
+- `add-admin-booking-insert-policy.sql` - Enable admin to create bookings for users
+- `add-admin-user-update-policy.sql` - Enable admin user updates
+- `add-admin-room-update-policy.sql` - Enable admin room updates
+
+**Troubleshooting & Fixes:**
+- `FIX-DUPLICATE-EMAILS.sql` - Fix duplicate email registrations
+- `PREVENT-DUPLICATE-REGISTRATION.sql` - Prevent duplicate user creation
+- `fix-race-condition.sql` - Address registration race conditions
+- `FIX-NEGATIVE-TOKEN-BALANCE.sql` - Fix negative token balance issues
+- `DISABLE-TOKEN-DEDUCTION-TRIGGER.sql` - Debug token deduction problems
+- `fix-check-room-availability.sql` - Fix overbooking issues
 
 ### Important Documentation Files
 - `DATABASE_ARCHITECTURE.md` - Complete ERD, schema design, and service layer patterns
 - `EMAIL-SETUP-GUIDE.md` - Email notification configuration (Resend API)
 - `DEPLOYMENT_GUIDE.md` - Production deployment instructions
 - `FIX-*.md` files - Specific bug fixes and workarounds
+- `*-IMPLEMENTATION-SUMMARY.md` files - Feature implementation summaries

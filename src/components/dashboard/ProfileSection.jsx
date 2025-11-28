@@ -21,7 +21,7 @@ export const ProfileSection = () => {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingPassword, setEditingPassword] = useState(false);
   const [profileData, setProfileData] = useState({
-    name: user?.name || '',
+    name: user?.full_name || user?.name || '',
     email: user?.email || '',
     phone: user?.phone || ''
   });
@@ -99,12 +99,12 @@ export const ProfileSection = () => {
         <div className="flex items-center space-x-4">
           <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
             <span className="text-2xl font-bold text-white">
-              {user.name?.charAt(0)?.toUpperCase() || 'U'}
+              {(user.full_name || user.name)?.charAt(0)?.toUpperCase() || 'U'}
             </span>
           </div>
           <div>
             <h1 className="text-3xl font-bold text-amber-800">
-              {t.dashboard.welcome}, {user.name}
+              {t.dashboard.welcome}, {user.full_name || user.name || user.email.split('@')[0]}
             </h1>
             <p className="text-amber-600">{user.email}</p>
             <div className="flex flex-wrap items-center gap-3 mt-3">

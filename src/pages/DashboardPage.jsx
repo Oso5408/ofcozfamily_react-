@@ -20,17 +20,23 @@ import {
 import { ToastAction } from "@/components/ui/toast"
 
 export const DashboardPage = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { language } = useLanguage();
   const t = translations[language];
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState([]);
   const reviewToastShown = useRef(false);
 
   useEffect(() => {
+    // Don't check auth while still loading
+    if (isLoading) {
+      console.log('⏳ Auth still loading, waiting...');
+      return;
+    }
+
     if (!user) {
       navigate('/login');
       return;
@@ -89,7 +95,7 @@ export const DashboardPage = () => {
     };
 
     loadBookings();
-  }, [user, navigate, toast, t, language]);
+  }, [user, navigate, toast, t, language, isLoading]);
 
   const handleUpdateBooking = (updatedBooking) => {
     const allBookings = JSON.parse(localStorage.getItem('ofcoz_bookings') || '[]');
@@ -102,6 +108,19 @@ export const DashboardPage = () => {
     });
   };
 
+  // Show loading state while auth is initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+          <p className="text-amber-700">{language === 'zh' ? '載入中...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not logged in (will be redirected by useEffect)
   if (!user) return null;
 
   return (

@@ -200,9 +200,10 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                       )}
                     </>
                   )}
-                  {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed' || booking.status === 'pending') && canModify(booking) && (
+                  {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed' || booking.status === 'pending') && (
                     <>
-                      {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed') && (
+                      {/* Add to Calendar button - only show if booking is 24+ hours away */}
+                      {(booking.status === 'confirmed' || booking.status === 'to_be_confirmed') && canModify(booking) && (
                         <Button
                           onClick={() => handleAddToCalendar(booking)}
                           size="sm"
@@ -222,6 +223,7 @@ export const BookingsTab = ({ bookings = [], setBookings, onUpdateBooking }) => 
                         <Edit className="w-4 h-4 mr-1" />
                         {t.dashboard.editBooking}
                       </Button> */}
+                      {/* Cancel button - always show (no time restriction) */}
                       <Button
                         onClick={() => handleCancelClick(booking)}
                         variant="outline"

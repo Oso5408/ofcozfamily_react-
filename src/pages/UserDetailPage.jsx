@@ -635,7 +635,7 @@ export const UserDetailPage = () => {
                               {/* Time and Receipt */}
                               <div className="text-sm text-amber-600">
                                 <p>
-                                  {language === 'zh' ? '時間' : 'Time'}: {startTime.toLocaleTimeString(language === 'zh' ? 'zh-HK' : 'en-US', { hour: '2-digit', minute: '2-digit' })} - {endTime.toLocaleTimeString(language === 'zh' ? 'zh-HK' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                                  {language === 'zh' ? '時間' : 'Time'}: {startTime.toLocaleTimeString(language === 'zh' ? 'zh-HK' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} - {endTime.toLocaleTimeString(language === 'zh' ? 'zh-HK' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                                 </p>
                                 {booking.receipt_number && (
                                   <p className="text-xs text-amber-500 mt-1">

@@ -21,23 +21,79 @@ export const AuthProvider = ({ children }) => {
     // Check active session
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('🔐 Initializing auth session...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('❌ Session error:', sessionError);
+          setIsLoading(false);
+          return;
+        }
 
         if (session?.user) {
+          console.log('✅ Session found for user:', session.user.email);
           setUser(session.user);
-          // Fetch user profile
-          const { data: userProfile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+
+          // Try to fetch profile with retry logic
+          let attempts = 0;
+          let userProfile = null;
+          const maxAttempts = 3;
+
+          while (attempts < maxAttempts && !userProfile) {
+            attempts++;
+            console.log(`📖 Fetching profile (attempt ${attempts}/${maxAttempts})...`);
+
+            const { data, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (data) {
+              console.log('✅ Profile fetched successfully:', data.email);
+              userProfile = data;
+            } else if (error) {
+              console.error(`❌ Profile fetch attempt ${attempts} failed:`, error.message);
+              console.error('Error details:', error);
+
+              // Wait before retry (except on last attempt)
+              if (attempts < maxAttempts) {
+                console.log('⏳ Waiting 500ms before retry...');
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
+          }
+
+          // Fallback: use session user data if profile fetch fails after all retries
+          if (!userProfile) {
+            console.warn('⚠️ Profile fetch failed after all retries, using session data as fallback');
+            console.warn('⚠️ User will stay logged in but may have limited profile data');
+            userProfile = {
+              id: session.user.id,
+              email: session.user.email,
+              full_name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+              phone: session.user.user_metadata?.phone || '',
+              tokens: 0,
+              token_valid_until: null,
+              br15_balance: 0,
+              br30_balance: 0,
+              dp20_balance: 0,
+              dp20_expiry: null,
+              is_admin: false,
+            };
+          }
 
           setProfile(userProfile);
+          console.log('✅ Auth initialization complete');
+        } else {
+          console.log('ℹ️ No active session found');
         }
       } catch (error) {
-        console.error('Failed to initialize auth:', error);
+        console.error('❌ Auth initialization error:', error);
+        console.error('Stack trace:', error.stack);
       } finally {
         setIsLoading(false);
+        console.log('✅ Auth loading complete');
       }
     };
 

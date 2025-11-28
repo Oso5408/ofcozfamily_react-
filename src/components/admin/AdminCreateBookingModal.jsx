@@ -370,6 +370,15 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
       }
       // For 'cash' payment method, no deduction needed
 
+      // Prepare purpose text (handle array of purposes + other purpose)
+      let purposeText = '';
+      if (Array.isArray(bookingData.purpose) && bookingData.purpose.length > 0) {
+        purposeText = bookingData.purpose.join(', ');
+        if (bookingData.otherPurpose) {
+          purposeText += ': ' + bookingData.otherPurpose;
+        }
+      }
+
       const bookingPayload = {
         userId: selectedUser.id,
         roomId: selectedRoom.id,
@@ -378,15 +387,14 @@ export const AdminCreateBookingModal = ({ isOpen, onClose, users, rooms, onBooki
         bookingType: bookingData.bookingType,
         paymentMethod: bookingData.paymentMethod,
         totalCost: totalCost,
+        equipment: bookingData.equipment || [],
+        purpose: purposeText,
+        guests: bookingData.guests || 1,
+        specialRequests: bookingData.specialRequests,
         notes: JSON.stringify({
           name: selectedUser.full_name || selectedUser.name,
           email: selectedUser.email,
           phone: selectedUser.phone,
-          guests: bookingData.guests,
-          purpose: bookingData.purpose,
-          otherPurpose: bookingData.otherPurpose,
-          equipment: bookingData.equipment,
-          specialRequests: bookingData.specialRequests,
           wantsProjector: bookingData.wantsProjector,
         }),
       };

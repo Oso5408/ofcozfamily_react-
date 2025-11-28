@@ -1002,6 +1002,23 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '預約目的：' : 'Purpose: '}</strong>{booking.purpose}</p>
                 </div>
               )}
+              {booking.equipment && booking.equipment.length > 0 && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 font-semibold mb-2">
+                    {language === 'zh' ? '設備需求：' : 'Equipment Required:'}
+                  </p>
+                  <div className="space-y-1">
+                    {booking.equipment.map((item, index) => {
+                      const equipmentLabel = t.booking.equipmentOptions[item.type] || item.type;
+                      return (
+                        <p key={index} className="text-sm text-blue-700">
+                          • {equipmentLabel}: <span className="font-semibold">{item.quantity}</span> {language === 'zh' ? '個' : 'pc(s)'}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {booking.specialRequests && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg">
                   <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '特殊要求：' : 'Special Requests: '}</strong>{booking.specialRequests}</p>

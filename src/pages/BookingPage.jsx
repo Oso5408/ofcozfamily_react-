@@ -324,6 +324,10 @@ export const BookingPage = () => {
         // Token/DP20: 'to_be_confirmed' (待確認) → payment completed, awaiting confirmation
         status: bookingData.bookingType === 'cash' ? 'pending' : 'to_be_confirmed',
         notes: notes,
+        equipment: bookingData.equipment || [],
+        purpose: purposeText,
+        guests: bookingData.guests || 1,
+        specialRequests: bookingData.specialRequests,
       });
 
       if (!result.success) {
