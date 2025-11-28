@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash, DollarSign, Eye, FileText, CalendarPlus, Plus } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, Mail, Phone, Edit, CheckCircle, Trash2, Hash, DollarSign, Eye, FileText, CalendarPlus, Plus, Send } from 'lucide-react';
 import { EditBookingModal } from './EditBookingModal';
 import { PaymentConfirmModal } from './PaymentConfirmModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
 import { AdminCreateBookingModal } from './AdminCreateBookingModal';
+import { Checkbox } from '@/components/ui/checkbox';
 import { sendBookingConfirmationEmail } from '@/lib/email';
 import { generateReceiptNumber } from '@/lib/utils';
 import { bookingService, emailService, roomService } from '@/services';
@@ -41,12 +42,26 @@ const normalizeBooking = (booking) => {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
-  const formatDate = (isoString) => {
+  const formatDate = (isoString, includeWeekday = false) => {
     if (!isoString) return '';
     // Extract date parts directly from ISO string to avoid timezone issues
     const datePart = isoString.split('T')[0]; // Get YYYY-MM-DD
     const [year, month, day] = datePart.split('-');
-    return `${day}/${month}/${year}`;
+    const dateString = `${day}/${month}/${year}`;
+
+    if (!includeWeekday) {
+      return dateString;
+    }
+
+    // Add day of week
+    const date = new Date(year, month - 1, day);
+    const weekdays = {
+      zh: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
+      en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    };
+    const dayOfWeek = date.getDay();
+
+    return `${dateString} (${weekdays.zh[dayOfWeek]})`;
   };
 
   const formatTime = (isoString) => {
@@ -66,7 +81,7 @@ const normalizeBooking = (booking) => {
     room: booking.rooms || booking.room,
     // Normalize date fields with proper formatting
     createdAt: booking.created_at || booking.createdAt,
-    date: booking.start_time ? formatDate(booking.start_time) : booking.date,
+    date: booking.start_time ? formatDate(booking.start_time, true) : booking.date, // Include weekday
     startTime: booking.start_time ? formatTime(booking.start_time) : booking.startTime,
     endTime: booking.end_time ? formatTime(booking.end_time) : booking.endTime,
     // For display in date-time format
@@ -131,6 +146,29 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const [specificDate, setSpecificDate] = useState('');
   const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
   const [rooms, setRooms] = useState([]);
+  const [sendingEmailForBooking, setSendingEmailForBooking] = useState(null);
+  const [emailSentForBookings, setEmailSentForBookings] = useState(new Set());
+  const [shouldRefundTokens, setShouldRefundTokens] = useState(true);
+
+  // Helper function to sort bookings: cancelled bookings at top, sorted by cancelled_at
+  // Non-cancelled bookings below, sorted by createdAt
+  const sortBookings = (bookingsToSort) => {
+    return [...bookingsToSort].sort((a, b) => {
+      // Cancelled bookings always come first
+      if (a.status === 'cancelled' && b.status !== 'cancelled') return -1;
+      if (a.status !== 'cancelled' && b.status === 'cancelled') return 1;
+
+      // Both cancelled: sort by cancelled_at (newest first)
+      if (a.status === 'cancelled' && b.status === 'cancelled') {
+        const aDate = new Date(a.cancelled_at || a.createdAt);
+        const bDate = new Date(b.cancelled_at || b.createdAt);
+        return bDate - aDate;
+      }
+
+      // Both not cancelled: sort by createdAt (newest first)
+      return new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at);
+    });
+  };
 
   // Normalize all bookings
   const normalizedBookings = bookings.map(normalizeBooking);
@@ -174,11 +212,11 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       updatedBooking.receiptNumber = generateReceiptNumber();
     }
 
-    const updatedBookings = allBookings.map(b => 
+    const updatedBookings = allBookings.map(b =>
       b.id === bookingId ? updatedBooking : b
     );
     localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookings));
-    setBookings(updatedBookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    setBookings(sortBookings(updatedBookings));
     
     if (newStatus === 'confirmed') {
       sendBookingConfirmationEmail(updatedBooking, language);
@@ -200,9 +238,10 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     try {
       // Call the admin cancel booking service
       const result = await bookingService.adminCancelBooking(
-        bookingToCancel,
+        bookingToCancel.id,
         currentUser.id,
-        'Cancelled by admin'
+        'Cancelled by admin',
+        shouldRefundTokens
       );
 
       if (!result.success) {
@@ -214,19 +253,54 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         return;
       }
 
-      // Update local bookings state
-      setBookings(prevBookings =>
-        prevBookings.map(b =>
-          b.id === bookingToCancel
-            ? { ...b, status: 'cancelled', cancelled_at: new Date().toISOString() }
+      // Update local bookings state with sorting
+      setBookings(prevBookings => {
+        const updatedBookings = prevBookings.map(b =>
+          b.id === bookingToCancel.id
+            ? { ...b, status: 'cancelled', cancelled_at: new Date().toISOString(), cancellation_reviewed: false }
             : b
-        )
-      );
-
-      toast({
-        title: t.booking.cancelSuccess,
-        description: t.booking.cancelSuccessDesc
+        );
+        return sortBookings(updatedBookings);
       });
+
+      // Send cancellation email to user
+      try {
+        const cancelledBooking = result.booking;
+        if (cancelledBooking) {
+          console.log('📧 Sending cancellation email to user...');
+          const normalizedBooking = normalizeBooking(cancelledBooking);
+          const emailResult = await emailService.sendCancellationEmailToUser(normalizedBooking, language);
+
+          if (!emailResult.success) {
+            console.error('❌ Failed to send user cancellation email:', emailResult.error);
+            // Show warning but don't fail the cancellation
+            toast({
+              title: t.booking.cancelSuccess,
+              description: language === 'zh'
+                ? '預約已取消，但電郵發送失敗。請手動通知用戶。'
+                : 'Booking cancelled, but email failed to send. Please notify user manually.',
+              variant: 'warning',
+            });
+          } else {
+            console.log('✅ User cancellation email sent successfully');
+            toast({
+              title: t.booking.cancelSuccess,
+              description: language === 'zh'
+                ? '預約已取消，取消確認郵件已發送給用戶。'
+                : 'Booking cancelled. Cancellation email has been sent to the user.'
+            });
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending user cancellation email:', emailError);
+        // Show success for cancellation but note email issue
+        toast({
+          title: t.booking.cancelSuccess,
+          description: language === 'zh'
+            ? '預約已取消，但電郵發送失敗。'
+            : 'Booking cancelled, but email failed to send.',
+        });
+      }
     } catch (error) {
       console.error('Error cancelling booking:', error);
       toast({
@@ -236,6 +310,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       });
     } finally {
       setBookingToCancel(null);
+      setShouldRefundTokens(true); // Reset to default
     }
   };
   
@@ -268,7 +343,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Refresh bookings list
       const refreshResult = await bookingService.getAllBookings();
       if (refreshResult.success) {
-        setBookings(refreshResult.bookings);
+        setBookings(sortBookings(refreshResult.bookings));
       }
       setEditingBooking(null);
 
@@ -311,7 +386,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Reload all bookings from Supabase to get fresh data
       const bookingsResult = await bookingService.getAllBookings();
       if (bookingsResult.success) {
-        setBookings(bookingsResult.bookings);
+        setBookings(sortBookings(bookingsResult.bookings));
         console.log('✅ Bookings reloaded after payment confirmation');
       }
 
@@ -403,7 +478,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Reload all bookings from Supabase
       const bookingsResult = await bookingService.getAllBookings();
       if (bookingsResult.success) {
-        setBookings(bookingsResult.bookings);
+        setBookings(sortBookings(bookingsResult.bookings));
       }
 
       // Close the modal
@@ -416,6 +491,44 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         description: error.message || (language === 'zh' ? '無法確認付款，請稍後再試。' : 'Could not confirm payment. Please try again later.'),
         variant: 'destructive',
       });
+    }
+  };
+
+  // Handle sending cancellation email to user
+  const handleSendCancellationEmail = async (booking) => {
+    if (!booking) return;
+
+    setSendingEmailForBooking(booking.id);
+
+    try {
+      const normalizedBooking = normalizeBooking(booking);
+      const result = await emailService.sendCancellationEmailToUser(normalizedBooking, language);
+
+      if (!result.success) {
+        toast({
+          title: language === 'zh' ? '發送失敗' : 'Send Failed',
+          description: result.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Mark this booking as email sent
+      setEmailSentForBookings(prev => new Set([...prev, booking.id]));
+
+      toast({
+        title: t.admin.cancellationEmailSent,
+        description: t.admin.cancellationEmailSentDesc,
+      });
+    } catch (error) {
+      console.error('Error sending cancellation email:', error);
+      toast({
+        title: language === 'zh' ? '發生錯誤' : 'Error Occurred',
+        description: error.message || (language === 'zh' ? '無法發送郵件' : 'Could not send email'),
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingEmailForBooking(null);
     }
   };
 
@@ -494,7 +607,9 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     all: language === 'zh' ? '所有預約' : 'All Bookings',
     confirmed: language === 'zh' ? '已確認預約' : 'Confirmed Bookings',
     pending: language === 'zh' ? '待確認預約' : 'Pending Bookings',
+    to_be_confirmed: language === 'zh' ? '待確認預約' : 'To Be Confirmed',
     cancelled: language === 'zh' ? '已取消預約' : 'Cancelled Bookings',
+    pending_cancellation_review: language === 'zh' ? '待確認取消' : 'Pending Cancellation Review',
     modified: language === 'zh' ? '已修改預約' : 'Modified Bookings',
     paid: language === 'zh' ? '已付款預約' : 'Paid Bookings',
   };
@@ -503,13 +618,60 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const filteredByDateBookings = normalizedBookings.filter(matchesDateFilter);
 
   const handleBookingCreated = (newBooking) => {
-    // Add the new booking to the list
-    setBookings([newBooking, ...bookings]);
+    // Add the new booking to the list with sorting
+    setBookings(sortBookings([newBooking, ...bookings]));
     toast({
       title: t.admin.bookingCreatedSuccess,
       description: language === 'zh' ? '預約已成功建立' : 'Booking created successfully',
     });
   };
+
+  // Track previous filter status and unreviewed cancellations to detect when admin navigates away
+  const prevFilterStatusRef = useRef(filterStatus);
+  const unreviewedCancellationsRef = useRef([]);
+
+  // Auto-mark cancelled bookings as reviewed when LEAVING the pending_cancellation_review filter
+  useEffect(() => {
+    const prevFilterStatus = prevFilterStatusRef.current;
+
+    // If we're LEAVING the pending_cancellation_review filter, mark all as reviewed
+    if (prevFilterStatus === 'pending_cancellation_review' && filterStatus !== 'pending_cancellation_review') {
+      const cancellationsToReview = unreviewedCancellationsRef.current;
+
+      if (cancellationsToReview.length > 0) {
+        console.log(`🔍 Admin leaving pending cancellation review - marking ${cancellationsToReview.length} cancellations as reviewed`);
+
+        // Mark all viewed cancellations as reviewed
+        cancellationsToReview.forEach(async (booking) => {
+          const result = await bookingService.markCancellationReviewed(booking.id);
+
+          if (result.success) {
+            // Update local state to reflect the change
+            setBookings(prevBookings =>
+              prevBookings.map(b =>
+                b.id === booking.id
+                  ? { ...b, cancellation_reviewed: true }
+                  : b
+              )
+            );
+          }
+        });
+
+        // Clear the ref after marking as reviewed
+        unreviewedCancellationsRef.current = [];
+      }
+    }
+
+    // Store the current unreviewed cancellations when ENTERING pending_cancellation_review
+    if (filterStatus === 'pending_cancellation_review') {
+      unreviewedCancellationsRef.current = filteredByDateBookings.filter(
+        b => b.status === 'cancelled' && b.cancellation_reviewed === false
+      );
+    }
+
+    // Update ref for next render
+    prevFilterStatusRef.current = filterStatus;
+  }, [filterStatus, filteredByDateBookings]); // Re-run when filter changes or bookings update
 
   return (
     <div>
@@ -666,6 +828,30 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   }`}>
                     {getStatusText(booking.status)}
                   </span>
+                  {/* Show "Cancelled on behalf" indicator if admin cancelled for user */}
+                  {booking.status === 'cancelled' && booking.cancelled_by && booking.user_id && booking.cancelled_by !== booking.user_id && (
+                    <span className="px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800 font-medium">
+                      {language === 'zh' ? '代用戶取消' : 'Cancelled on behalf'}
+                    </span>
+                  )}
+                  {/* Send Cancellation Email button for cancelled bookings */}
+                  {booking.status === 'cancelled' && (
+                    emailSentForBookings.has(booking.id) ? (
+                      <span className="px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-600 font-medium">
+                        {t.admin.emailSent}
+                      </span>
+                    ) : (
+                      <Button
+                        onClick={() => handleSendCancellationEmail(booking)}
+                        size="sm"
+                        disabled={sendingEmailForBooking === booking.id}
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                      >
+                        <Send className="w-4 h-4 mr-1" />
+                        {sendingEmailForBooking === booking.id ? t.admin.sendingEmail : t.admin.sendCancellationEmail}
+                      </Button>
+                    )
+                  )}
                   {booking.receipt_url && (
                     <Button
                       onClick={() => handleViewReceipt(booking)}
@@ -721,7 +907,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                    {booking.status !== 'cancelled' && (
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
-                           <Button size="sm" variant="destructive" onClick={() => setBookingToCancel(booking.id)}>
+                           <Button size="sm" variant="destructive" onClick={() => setBookingToCancel(booking)}>
                               <Trash2 className="w-4 h-4 mr-1" />
                               {language === 'zh' ? '取消' : 'Cancel'}
                             </Button>
@@ -730,11 +916,34 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                           <AlertDialogHeader>
                             <AlertDialogTitle>{language === 'zh' ? '確認取消' : 'Confirm Cancellation'}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              {language === 'zh' ? '您確定要取消此預約嗎？如果使用代幣預約，代幣將會退還。此操作無法撤銷。' : 'Are you sure you want to cancel this booking? If tokens were used, they will be refunded. This action cannot be undone.'}
+                              {language === 'zh' ? '您確定要取消此預約嗎？此操作無法撤銷。' : 'Are you sure you want to cancel this booking? This action cannot be undone.'}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
+                          {/* Show refund checkbox only for token/package payments */}
+                          {bookingToCancel && ['token', 'dp20', 'br15', 'br30'].includes(bookingToCancel.paymentMethod) && (
+                            <div className="flex items-start space-x-3 px-6 py-4">
+                              <Checkbox
+                                id="refund-tokens"
+                                checked={shouldRefundTokens}
+                                onCheckedChange={setShouldRefundTokens}
+                              />
+                              <div className="grid gap-1.5 leading-none">
+                                <label
+                                  htmlFor="refund-tokens"
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                >
+                                  {t.admin.refundTokens}
+                                </label>
+                                <p className="text-sm text-muted-foreground">
+                                  {t.admin.refundTokensDesc}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setBookingToCancel(null)}>{language === 'zh' ? '返回' : 'Back'}</AlertDialogCancel>
+                            <AlertDialogCancel onClick={() => { setBookingToCancel(null); setShouldRefundTokens(true); }}>
+                              {language === 'zh' ? '返回' : 'Back'}
+                            </AlertDialogCancel>
                             <AlertDialogAction onClick={handleAdminCancelBooking}>{language === 'zh' ? '確認取消' : 'Confirm Cancel'}</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -748,28 +957,41 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm mb-4">
-                <div className="flex items-center text-amber-700">
-                  <Users className="w-4 h-4 mr-2" />
-                  <div>
-                    <div className="font-medium">{getUserName(booking.userId)}</div>
-                    <div className="text-xs">{booking.name}</div>
-                  </div>
-                </div>
-                <div className="flex items-center text-amber-700">
-                  <Mail className="w-4 h-4 mr-2" />
-                  <div>
-                    <div>{booking.email}</div>
-                    {booking.phone && <div className="flex items-center text-xs"><Phone className="w-3 h-3 mr-1" />{booking.phone}</div>}
-                  </div>
-                </div>
+                {/* 1. Date */}
                 <div className="flex items-center text-amber-700">
                   <Calendar className="w-4 h-4 mr-2" />
                   <div>{language === 'zh' ? '日期' : 'Date'}: {booking.date}</div>
                 </div>
+
+                {/* 2. Time */}
                 <div className="flex items-center text-amber-700">
                   <Clock className="w-4 h-4 mr-2" />
                   <div>{booking.startTime} - {booking.endTime}</div>
                 </div>
+
+                {/* 3. User name */}
+                <div className="flex items-center text-amber-700">
+                  <Users className="w-4 h-4 mr-2" />
+                  <div>
+                    <div className="font-medium">{booking.name}</div>
+                  </div>
+                </div>
+
+                {/* 4. Email */}
+                <div className="flex items-center text-amber-700">
+                  <Mail className="w-4 h-4 mr-2" />
+                  <div>{booking.email}</div>
+                </div>
+
+                {/* 5. Phone */}
+                {booking.phone && (
+                  <div className="flex items-center text-amber-700">
+                    <Phone className="w-4 h-4 mr-2" />
+                    <div>{booking.phone}</div>
+                  </div>
+                )}
+
+                {/* 6. Number of guests */}
                 <div className="flex items-center text-amber-700">
                   <MapPin className="w-4 h-4 mr-2" />
                   <span>{booking.guests} {language === 'zh' ? '位客人' : 'guest(s)'}</span>

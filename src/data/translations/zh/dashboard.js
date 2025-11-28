@@ -94,4 +94,11 @@ export const admin = {
   bookingCreatedDesc: "已成功為 {name} 建立預約",
   adminNote: "管理員備註",
   bookingForUser: "為用戶預約",
+  sendCancellationEmail: "發送取消郵件給用戶",
+  emailSent: "已發送郵件",
+  cancellationEmailSent: "取消確認郵件已發送",
+  cancellationEmailSentDesc: "取消確認郵件已發送給用戶。",
+  sendingEmail: "發送中...",
+  refundTokens: "退還代幣/套票給用戶",
+  refundTokensDesc: "如勾選，代幣或套票時數/天數將退回用戶帳戶",
 };

@@ -94,4 +94,11 @@ export const admin = {
   bookingCreatedDesc: "Booking created successfully for {name}",
   adminNote: "Admin Note",
   bookingForUser: "Booking for",
+  sendCancellationEmail: "Send Email to User",
+  emailSent: "Email Sent",
+  cancellationEmailSent: "Cancellation Email Sent",
+  cancellationEmailSentDesc: "Cancellation confirmation email has been sent to the user.",
+  sendingEmail: "Sending...",
+  refundTokens: "Refund tokens/package to user",
+  refundTokensDesc: "If checked, tokens or package hours/days will be returned to the user's account",
 };

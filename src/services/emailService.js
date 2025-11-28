@@ -484,4 +484,259 @@ export const emailService = {
 
     return await this.sendBookingConfirmation(testBooking, language);
   },
+
+  /**
+   * Send cancellation notification to admin when a booking is cancelled
+   * @param {Object} booking - The cancelled booking object
+   * @param {string} language - Language code ('en' or 'zh')
+   * @param {boolean} cancelledByAdmin - True if admin cancelled on behalf of user
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async sendCancellationNotificationToAdmin(booking, language = 'zh', cancelledByAdmin = false) {
+    try {
+      const t = translations[language];
+
+      // Extract user info
+      let userName = booking.name || booking.users?.full_name || booking.users?.name;
+      if (!userName && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userName = notes.name;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      userName = userName || 'Customer';
+
+      // Extract email
+      let userEmail = booking.email || booking.users?.email;
+      if (!userEmail && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userEmail = notes.email;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+
+      // Get room name safely
+      const roomName = booking.room?.name || booking.rooms?.name || 'Room';
+
+      // Get translated room name safely
+      let roomNameTranslated = roomName;
+      try {
+        if (t && t.rooms && t.rooms.roomNames && roomName) {
+          roomNameTranslated = t.rooms.roomNames[roomName] || roomName;
+        }
+      } catch (e) {
+        console.warn('Could not translate room name, using original:', roomName);
+      }
+
+      // Format dates
+      const formatDate = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        return date.toLocaleDateString('en-GB');
+      };
+
+      const formatTime = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      };
+
+      // Prepare email data
+      const emailData = {
+        to: ADMIN_EMAIL, // Always send to admin
+        language: language,
+        booking: {
+          name: userName,
+          email: userEmail || 'N/A',
+          receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
+          room: {
+            name: roomName,
+          },
+          date: booking.date || formatDate(booking.start_time),
+          startTime: booking.startTime || formatTime(booking.start_time),
+          endTime: booking.endTime || formatTime(booking.end_time),
+          cancelledAt: formatDate(booking.cancelled_at) + ' ' + formatTime(booking.cancelled_at),
+          cancellationReason: booking.cancellation_reason || (language === 'zh' ? '無原因提供' : 'No reason provided'),
+          cancelledBy: cancelledByAdmin ? (language === 'zh' ? '管理員代取消' : 'Admin (on behalf)') : (language === 'zh' ? '用戶自行取消' : 'User cancelled'),
+        },
+        roomNameTranslated: roomNameTranslated,
+      };
+
+      console.log('📧 Sending cancellation notification to admin:', ADMIN_EMAIL);
+
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('send-cancellation-notification', {
+        body: emailData,
+      });
+
+      if (error) {
+        console.error('❌ Error sending admin cancellation notification:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
+        return { success: false, error: error.message || String(error) };
+      }
+
+      if (!data) {
+        console.error('❌ Email sending failed: No response data');
+        return { success: false, error: 'No response from email service' };
+      }
+
+      if (!data.success) {
+        console.error('❌ Email sending failed:', data.error);
+        return { success: false, error: data.error || 'Email sending failed' };
+      }
+
+      console.log('✅ Admin cancellation notification sent successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Exception in sendCancellationNotificationToAdmin:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Send cancellation confirmation email to user (manually triggered by admin)
+   * @param {Object} booking - The cancelled booking object
+   * @param {string} language - Language code ('en' or 'zh')
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async sendCancellationEmailToUser(booking, language = 'zh') {
+    try {
+      const t = translations[language];
+
+      // Extract user info
+      let userName = booking.name || booking.users?.full_name || booking.users?.name;
+      if (!userName && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userName = notes.name;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      userName = userName || 'Valued Customer';
+
+      // Extract email
+      let userEmail = booking.email || booking.users?.email;
+      if (!userEmail && booking.notes) {
+        try {
+          const notes = typeof booking.notes === 'string' ? JSON.parse(booking.notes) : booking.notes;
+          userEmail = notes.email;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+
+      if (!userEmail) {
+        console.error('Cannot send email: user email is missing');
+        return { success: false, error: 'User email is missing' };
+      }
+
+      // Get room name safely
+      const roomName = booking.room?.name || booking.rooms?.name || 'Room';
+
+      // Get translated room name safely
+      let roomNameTranslated = roomName;
+      try {
+        if (t && t.rooms && t.rooms.roomNames && roomName) {
+          roomNameTranslated = t.rooms.roomNames[roomName] || roomName;
+        }
+      } catch (e) {
+        console.warn('Could not translate room name, using original:', roomName);
+      }
+
+      // Format dates
+      const formatDate = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        return date.toLocaleDateString('en-GB');
+      };
+
+      const formatTime = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      };
+
+      // Prepare email data
+      const emailData = {
+        to: userEmail,
+        bcc: ADMIN_EMAIL, // Admin receives copy
+        language: language,
+        booking: {
+          name: userName,
+          receiptNumber: booking.receiptNumber || booking.receipt_number || 'N/A',
+          room: {
+            name: roomName,
+          },
+          date: booking.date || formatDate(booking.start_time),
+          startTime: booking.startTime || formatTime(booking.start_time),
+          endTime: booking.endTime || formatTime(booking.end_time),
+          cancelledAt: formatDate(booking.cancelled_at) + ' ' + formatTime(booking.cancelled_at),
+          cancellationReason: booking.cancellation_reason || (language === 'zh' ? '無原因提供' : 'No reason provided'),
+          paymentMethod: booking.payment_method || booking.paymentMethod || 'cash',
+          totalCost: booking.total_cost || booking.totalCost || 0,
+        },
+        roomNameTranslated: roomNameTranslated,
+      };
+
+      console.log('📧 Sending cancellation confirmation to user:', userEmail, '(BCC:', ADMIN_EMAIL, ')');
+
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('send-cancellation-email', {
+        body: emailData,
+      });
+
+      if (error) {
+        console.error('❌ Error sending user cancellation email:', error);
+
+        // Extract actual error details from error.context (for non-2xx responses)
+        if (error.context) {
+          try {
+            const errorBody = await error.context.text();
+            console.error('❌ Edge Function error details:', errorBody);
+            return { success: false, error: `Edge Function error: ${errorBody}` };
+          } catch (e) {
+            console.error('❌ Could not read error context:', e);
+          }
+        }
+
+        return { success: false, error: error.message || String(error) };
+      }
+
+      if (!data) {
+        console.error('❌ Email sending failed: No response data');
+        return { success: false, error: 'No response from email service' };
+      }
+
+      if (!data.success) {
+        console.error('❌ Email sending failed:', data.error);
+        return { success: false, error: data.error || 'Email sending failed' };
+      }
+
+      console.log('✅ User cancellation confirmation email sent successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Exception in sendCancellationEmailToUser:', error);
+      return { success: false, error: error.message };
+    }
+  },
 };

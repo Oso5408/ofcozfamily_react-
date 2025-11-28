@@ -1,5 +1,6 @@
 import { supabase, handleSupabaseError } from '@/lib/supabase';
 import { availableDatesService } from './availableDatesService';
+import { emailService } from './emailService';
 
 /**
  * Booking Service
@@ -269,6 +270,19 @@ export const bookingService = {
 
       console.log('✅ Booking cancelled successfully (FREE - no charges)');
 
+      // Send cancellation notification to admin
+      try {
+        await emailService.sendCancellationNotificationToAdmin(
+          updatedBooking,
+          'zh', // Default language
+          false // User-initiated cancellation
+        );
+        console.log('✅ Admin notification sent for user cancellation');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send admin notification, but cancellation succeeded:', emailError);
+        // Don't fail the cancellation if email fails
+      }
+
       return {
         success: true,
         booking: updatedBooking,
@@ -286,16 +300,18 @@ export const bookingService = {
    * @param {string} bookingId - Booking ID to cancel
    * @param {string} adminUserId - Admin user ID performing the cancellation
    * @param {string} reason - Reason for cancellation
+   * @param {boolean} shouldRefund - Whether to refund tokens/packages to user
    * @returns {Promise<{success: boolean, booking?: object, error?: string}>}
    */
-  async adminCancelBooking(bookingId, adminUserId, reason = 'Cancelled by admin') {
+  async adminCancelBooking(bookingId, adminUserId, reason = 'Cancelled by admin', shouldRefund = true) {
     try {
-      console.log('🔧 Admin cancelling booking:', bookingId);
+      console.log('🔧 Admin cancelling booking:', bookingId, 'shouldRefund:', shouldRefund);
 
-      // Fetch booking details
+      // Fetch booking details with user info
+      // Use users!bookings_user_id_fkey to specify we want the booking owner's info
       const { data: booking, error: fetchError } = await supabase
         .from('bookings')
-        .select('*, rooms(*)')
+        .select('*, rooms(*), users!bookings_user_id_fkey(*)')
         .eq('id', bookingId)
         .single();
 
@@ -310,7 +326,7 @@ export const bookingService = {
       const bookingStart = new Date(booking.start_time);
       const hoursBeforeBooking = Math.floor((bookingStart - now) / (1000 * 60 * 60));
 
-      // Update booking status to cancelled (no token deduction for admin cancellations)
+      // Update booking status to cancelled
       const { data: updatedBooking, error: updateError } = await supabase
         .from('bookings')
         .update({
@@ -327,7 +343,91 @@ export const bookingService = {
 
       if (updateError) throw updateError;
 
+      // Handle token/package refund if requested
+      if (shouldRefund && booking.payment_method) {
+        const paymentMethod = booking.payment_method;
+        const userId = booking.user_id;
+
+        console.log('💰 Processing refund for payment method:', paymentMethod);
+
+        if (paymentMethod === 'token') {
+          // Refund regular tokens
+          const tokensToRefund = booking.total_cost || 0;
+          if (tokensToRefund > 0) {
+            const { error: refundError } = await supabase.rpc('add_tokens', {
+              p_user_id: userId,
+              p_amount: tokensToRefund,
+              p_booking_id: bookingId,
+              p_description: `Refund from cancelled booking #${booking.receipt_number || bookingId}`
+            });
+
+            if (refundError) {
+              console.error('❌ Failed to refund tokens:', refundError);
+            } else {
+              console.log(`✅ Refunded ${tokensToRefund} tokens to user`);
+            }
+          }
+        } else if (paymentMethod === 'dp20') {
+          // Refund DP20 package days (1 day per booking)
+          const daysToRefund = 1;
+          const { error: refundError } = await supabase.rpc('refund_dp20_days', {
+            p_user_id: userId,
+            p_days: daysToRefund,
+            p_booking_id: bookingId
+          });
+
+          if (refundError) {
+            console.error('❌ Failed to refund DP20 days:', refundError);
+          } else {
+            console.log(`✅ Refunded ${daysToRefund} DP20 day(s) to user`);
+          }
+        } else if (paymentMethod === 'br15') {
+          // Refund BR15 package hours
+          const hoursToRefund = booking.total_cost || 0;
+          const { error: refundError } = await supabase.rpc('refund_br15_hours', {
+            p_user_id: userId,
+            p_hours: hoursToRefund,
+            p_booking_id: bookingId
+          });
+
+          if (refundError) {
+            console.error('❌ Failed to refund BR15 hours:', refundError);
+          } else {
+            console.log(`✅ Refunded ${hoursToRefund} BR15 hour(s) to user`);
+          }
+        } else if (paymentMethod === 'br30') {
+          // Refund BR30 package hours
+          const hoursToRefund = booking.total_cost || 0;
+          const { error: refundError } = await supabase.rpc('refund_br30_hours', {
+            p_user_id: userId,
+            p_hours: hoursToRefund,
+            p_booking_id: bookingId
+          });
+
+          if (refundError) {
+            console.error('❌ Failed to refund BR30 hours:', refundError);
+          } else {
+            console.log(`✅ Refunded ${hoursToRefund} BR30 hour(s) to user`);
+          }
+        }
+      } else if (!shouldRefund) {
+        console.log('⏭️  Skipping refund as per admin choice');
+      }
+
       console.log('✅ Admin cancelled booking successfully');
+
+      // Send cancellation notification to admin
+      try {
+        await emailService.sendCancellationNotificationToAdmin(
+          updatedBooking,
+          'zh', // Default language
+          true // Admin-initiated cancellation (on behalf of user)
+        );
+        console.log('✅ Admin notification sent for admin cancellation');
+      } catch (emailError) {
+        console.error('⚠️ Failed to send admin notification, but cancellation succeeded:', emailError);
+        // Don't fail the cancellation if email fails
+      }
 
       return {
         success: true,
@@ -335,6 +435,33 @@ export const bookingService = {
       };
     } catch (error) {
       console.error('❌ Error in admin cancel booking:', error);
+      return { success: false, error: handleSupabaseError(error) };
+    }
+  },
+
+  /**
+   * Mark cancellation as reviewed by admin
+   * @param {string} bookingId - Booking ID to mark as reviewed
+   * @returns {Promise<{success: boolean, booking?: object, error?: string}>}
+   */
+  async markCancellationReviewed(bookingId) {
+    try {
+      console.log('✅ Marking cancellation as reviewed:', bookingId);
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ cancellation_reviewed: true })
+        .eq('id', bookingId)
+        .eq('status', 'cancelled')
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Cancellation marked as reviewed');
+      return { success: true, booking: data };
+    } catch (error) {
+      console.error('❌ Error marking cancellation as reviewed:', error);
       return { success: false, error: handleSupabaseError(error) };
     }
   },
