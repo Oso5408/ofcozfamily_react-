@@ -122,7 +122,7 @@ export const ReceiptViewModal = ({ isOpen, onClose, booking, onConfirm }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh]">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-amber-800">
             {isTokenPayment
