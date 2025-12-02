@@ -921,23 +921,27 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                               <Checkbox
                                 id="refund-tokens"
                                 checked={shouldRefundTokens}
-                                onCheckedChange={setShouldRefundTokens}
+                                onCheckedChange={(newValue) => setShouldRefundTokens(newValue)}
+                                defaultChecked={true}
                               />
                               <div className="grid gap-1.5 leading-none">
                                 <label
                                   htmlFor="refund-tokens"
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                  className="text-sm font-medium leading-none cursor-pointer select-none"
                                 >
                                   {t.admin.refundTokens}
                                 </label>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-sm text-gray-600">
                                   {t.admin.refundTokensDesc}
                                 </p>
                               </div>
                             </div>
                           )}
                           <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => { setBookingToCancel(null); setShouldRefundTokens(true); }}>
+                            <AlertDialogCancel onClick={() => {
+                              setBookingToCancel(null);
+                              setShouldRefundTokens(true);
+                            }}>
                               {language === 'zh' ? '返回' : 'Back'}
                             </AlertDialogCancel>
                             <AlertDialogAction onClick={handleAdminCancelBooking}>{language === 'zh' ? '確認取消' : 'Confirm Cancel'}</AlertDialogAction>
@@ -999,19 +1003,27 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                     <DollarSign className="w-4 h-4 mr-2" />
                     <div className="font-medium">
                       {booking.paymentMethod === 'token' && (
-                        <span>{booking.totalCost} {language === 'zh' ? '代幣已使用' : 'tokens used'}</span>
+                        <span>{booking.totalCost} {language === 'zh' ? '代幣已使用 (Token)' : 'tokens used (Token)'}</span>
                       )}
                       {booking.paymentMethod === 'br15' && (
-                        <span>{booking.totalCost} {language === 'zh' ? '小時 (BR15)' : 'hours (BR15)'}</span>
+                        <span className="text-blue-700">
+                          {booking.totalCost} {language === 'zh' ? '小時 (BR15包)' : 'hours (BR15)'}
+                        </span>
                       )}
                       {booking.paymentMethod === 'br30' && (
-                        <span>{booking.totalCost} {language === 'zh' ? '小時 (BR30)' : 'hours (BR30)'}</span>
+                        <span className="text-purple-700">
+                          {booking.totalCost} {language === 'zh' ? '小時 (BR30包)' : 'hours (BR30)'}
+                        </span>
                       )}
                       {booking.paymentMethod === 'dp20' && (
-                        <span>1 {language === 'zh' ? '日 (DP20)' : 'day (DP20)'}</span>
+                        <span className="text-green-700">
+                          1 {language === 'zh' ? '日 (DP20包)' : 'day (DP20)'}
+                        </span>
                       )}
                       {booking.paymentMethod === 'cash' && (
-                        <span>${Number(booking.totalCost).toFixed(2)}</span>
+                        <span className="text-gray-700">
+                          ${Number(booking.totalCost).toFixed(2)} {language === 'zh' ? '現金' : 'Cash'}
+                        </span>
                       )}
                       {!['token', 'br15', 'br30', 'dp20', 'cash'].includes(booking.paymentMethod) && (
                         <span>${Number(booking.totalCost).toFixed(2)}</span>
