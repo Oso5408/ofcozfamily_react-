@@ -992,6 +992,33 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   <MapPin className="w-4 h-4 mr-2" />
                   <span>{booking.guests} {language === 'zh' ? '位客人' : 'guest(s)'}</span>
                 </div>
+
+                {/* 7. Tokens/Credits Used */}
+                {booking.totalCost && (
+                  <div className="flex items-center text-amber-700">
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    <div className="font-medium">
+                      {booking.paymentMethod === 'token' && (
+                        <span>{booking.totalCost} {language === 'zh' ? '代幣已使用' : 'tokens used'}</span>
+                      )}
+                      {booking.paymentMethod === 'br15' && (
+                        <span>{booking.totalCost} {language === 'zh' ? '小時 (BR15)' : 'hours (BR15)'}</span>
+                      )}
+                      {booking.paymentMethod === 'br30' && (
+                        <span>{booking.totalCost} {language === 'zh' ? '小時 (BR30)' : 'hours (BR30)'}</span>
+                      )}
+                      {booking.paymentMethod === 'dp20' && (
+                        <span>1 {language === 'zh' ? '日 (DP20)' : 'day (DP20)'}</span>
+                      )}
+                      {booking.paymentMethod === 'cash' && (
+                        <span>${Number(booking.totalCost).toFixed(2)}</span>
+                      )}
+                      {!['token', 'br15', 'br30', 'dp20', 'cash'].includes(booking.paymentMethod) && (
+                        <span>${Number(booking.totalCost).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               {booking.purpose && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg">
