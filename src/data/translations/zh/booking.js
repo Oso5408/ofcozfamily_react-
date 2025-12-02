@@ -32,7 +32,7 @@ export const booking = {
       "whiteboard": "白板"
     },
     specialRequests: "備註",
-    specialRequestsPlaceholderUpdated: "其他特殊要求或備註（選填）",
+    specialRequestsPlaceholderUpdated: "其他備註（選填）",
     confirm: "確認預約 🐾",
     agreeTerms: "我同意以上條款及細則",
     termsTitle: "預約條款及細則",

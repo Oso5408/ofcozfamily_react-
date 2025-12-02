@@ -1021,7 +1021,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
               )}
               {booking.specialRequests && (
                 <div className="mt-4 p-3 bg-amber-50 rounded-lg">
-                  <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '特殊要求：' : 'Special Requests: '}</strong>{booking.specialRequests}</p>
+                  <p className="text-sm text-amber-700"><strong>{language === 'zh' ? '備註：' : 'Remarks: '}</strong>{booking.specialRequests}</p>
                 </div>
               )}
               {booking.admin_notes && (

@@ -27,7 +27,7 @@ const BookingDetailsModal = ({ isOpen, onOpenChange, booking, t, language }) => 
                     <p className="flex items-center"><Users className="w-4 h-4 mr-2" /><strong>{language === 'zh' ? '客戶:' : 'Client:'}</strong> {booking.name}</p>
                     <p className="flex items-center"><Clock className="w-4 h-4 mr-2" /><strong>{language === 'zh' ? '時間:' : 'Time:'}</strong> {booking.startTime} - {booking.endTime}</p>
                     <p><strong>{language === 'zh' ? '目的:' : 'Purpose:'}</strong> {booking.purpose}</p>
-                    {booking.specialRequests && <p><strong>{language === 'zh' ? '特殊要求:' : 'Requests:'}</strong> {booking.specialRequests}</p>}
+                    {booking.specialRequests && <p><strong>{language === 'zh' ? '備註:' : 'Remarks:'}</strong> {booking.specialRequests}</p>}
                 </div>
             </DialogContent>
         </Dialog>
