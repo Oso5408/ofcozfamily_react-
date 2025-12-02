@@ -50,7 +50,7 @@ const createSupabaseClient = () => {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      storage: localStorage,
+      storage: localStorage, // Always use localStorage, but we'll manage session clearing
     },
     db: {
       schema: 'public'

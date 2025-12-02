@@ -202,7 +202,7 @@ export const RegisterPage = () => {
           setTimeout(() => {
             console.log('🏠 Navigating to:', returnUrl);
             navigate(returnUrl);
-          }, 500);
+          }, 1500);
         }
       } else {
         // Display user-friendly error message

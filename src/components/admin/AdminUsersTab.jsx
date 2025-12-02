@@ -8,7 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 import { useToast } from '@/components/ui/use-toast';
-import { Eye, Shield, User, KeyRound, Trash2, Search, ChevronDown, Mail, Lock } from 'lucide-react';
+import { Eye, Shield, User, KeyRound, Trash2, Search, ChevronDown, Mail, Lock, UserPlus } from 'lucide-react';
+import { CreateUserModal } from './CreateUserModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, 
 
   const [searchQuery, setSearchQuery] = useState('');
   const [userToDelete, setUserToDelete] = useState(null);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
   const safeUsers = users || [];
 
@@ -107,11 +109,26 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, 
     navigate(`/admin/users/${userId}`);
   };
 
+  const handleUserCreated = async () => {
+    // Fetch updated user list from parent component
+    // Parent component should handle refreshing the user list
+    window.location.reload(); // Simple refresh - parent can implement better data fetching
+  };
+
   return (
     <div>
-      <h2 className="text-2xl font-bold text-amber-800 mb-6">
-        {language === 'zh' ? '客戶管理' : 'User Management'}
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-amber-800">
+          {language === 'zh' ? '客戶管理' : 'User Management'}
+        </h2>
+        <Button
+          onClick={() => setShowCreateUserModal(true)}
+          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+        >
+          <UserPlus className="w-4 h-4 mr-2" />
+          {language === 'zh' ? '新增用戶' : 'Create User'}
+        </Button>
+      </div>
 
       {/* Search Filter */}
       <Card className="p-4 mb-6 border-amber-200">
@@ -322,6 +339,13 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, 
           ))
         )}
       </div>
+
+      {/* Create User Modal */}
+      <CreateUserModal
+        isOpen={showCreateUserModal}
+        onClose={() => setShowCreateUserModal(false)}
+        onUserCreated={handleUserCreated}
+      />
     </div>
   );
 };
