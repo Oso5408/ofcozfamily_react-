@@ -57,9 +57,24 @@ export const authService = {
 
   /**
    * Sign in user
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @param {boolean} rememberMe - If true, extends session duration to 30 days
    */
-  async signIn(email, password) {
+  async signIn(email, password, rememberMe = false) {
     try {
+      // Store rememberMe preference for session management
+      if (rememberMe) {
+        localStorage.setItem('ofcoz_remember_me', 'true');
+        // Set expiry to 30 days from now
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        localStorage.setItem('ofcoz_session_expiry', expiryDate.toISOString());
+      } else {
+        localStorage.removeItem('ofcoz_remember_me');
+        localStorage.removeItem('ofcoz_session_expiry');
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -76,7 +91,9 @@ export const authService = {
 
       if (profileError) throw profileError;
 
-      return { success: true, user: data.user, profile };
+      console.log('✅ Login successful with rememberMe:', rememberMe);
+
+      return { success: true, user: data.user, profile, rememberMe };
     } catch (error) {
       return { success: false, error: handleSupabaseError(error) };
     }

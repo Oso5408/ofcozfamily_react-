@@ -1010,9 +1010,10 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   <div className="space-y-1">
                     {booking.equipment.map((item, index) => {
                       const equipmentLabel = t.booking.equipmentOptions[item.type] || item.type;
+                      const quantity = item.quantity || item.amount || 0;
                       return (
                         <p key={index} className="text-sm text-blue-700">
-                          • {equipmentLabel}: <span className="font-semibold">{item.quantity}</span> {language === 'zh' ? '個' : 'pc(s)'}
+                          • {equipmentLabel}: <span className="font-semibold">{quantity}</span> {language === 'zh' ? '個' : 'pc(s)'}
                         </p>
                       );
                     })}
