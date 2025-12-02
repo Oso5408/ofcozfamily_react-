@@ -192,6 +192,16 @@ export const MultiStepBookingForm = ({
       return false;
     }
 
+    // Validate equipment quantities (must have valid quantity > 0 for all selected items)
+    const hasInvalidQuantity = bookingData.equipment.some(item => {
+      const qty = item.quantity || item.amount || 0;
+      return qty <= 0 || qty === null || qty === undefined;
+    });
+
+    if (hasInvalidQuantity) {
+      return false;
+    }
+
     // specialRequests is now optional, no validation needed
     return true;
   };

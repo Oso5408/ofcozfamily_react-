@@ -253,6 +253,39 @@ export const BookingModal = ({
     onSubmit(e);
   };
 
+  // Validate required fields for form submission
+  const isFormValid = () => {
+    // Must agree to terms
+    if (!bookingData.agreedToTerms) return false;
+
+    // Must have purpose/business nature selected
+    if (!Array.isArray(bookingData.purpose) || bookingData.purpose.length === 0) {
+      return false;
+    }
+
+    // Must have equipment selected with valid quantities
+    if (!bookingData.equipment || bookingData.equipment.length === 0) {
+      return false;
+    }
+
+    // Validate all equipment items have quantity > 0
+    const hasInvalidQuantity = bookingData.equipment.some(item => {
+      const qty = item.quantity || item.amount || 0;
+      return qty <= 0 || qty === null || qty === undefined;
+    });
+
+    if (hasInvalidQuantity) {
+      return false;
+    }
+
+    // Check token balance if using token payment
+    if (bookingData.bookingType === 'token' && !hasEnoughTokens) {
+      return false;
+    }
+
+    return true;
+  };
+
   const calculateRequiredTokens = () => {
     if (bookingData.bookingType !== 'token' || !bookingData.startTime || !bookingData.endTime) return 0;
 
@@ -818,20 +851,35 @@ export const BookingModal = ({
 
             <div>
               <Label htmlFor="guests" className="text-amber-800">{t.booking.guests}</Label>
-              <Input
-                id="guests"
-                type="number"
-                min="1"
-                max={isDayPass ? 1 : selectedRoom?.capacity}
-                value={isDayPass ? 1 : bookingData.guests}
-                onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })}
-                className="border-amber-200 focus:border-amber-400"
-                disabled={isDayPass}
-              />
-              {isDayPass && (
-                <p className="text-sm text-gray-600 mt-1">
-                  {language === 'zh' ? 'Day Pass 僅限1人使用' : 'Day Pass is limited to 1 person'}
-                </p>
+              {isDayPass ? (
+                <>
+                  <Input
+                    id="guests"
+                    type="number"
+                    value={1}
+                    className="border-amber-200 focus:border-amber-400"
+                    disabled={true}
+                  />
+                  <p className="text-sm text-gray-600 mt-1">
+                    {language === 'zh' ? 'Day Pass 僅限1人使用' : 'Day Pass is limited to 1 person'}
+                  </p>
+                </>
+              ) : (
+                <Select
+                  value={bookingData.guests?.toString() || "1"}
+                  onValueChange={(value) => setBookingData({ ...bookingData, guests: parseInt(value) })}
+                >
+                  <SelectTrigger className="border-amber-200 focus:border-amber-400">
+                    <SelectValue placeholder={language === 'zh' ? '選擇人數' : 'Select number of guests'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: selectedRoom?.capacity || 10 }, (_, i) => i + 1).map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num} {language === 'zh' ? '位客人' : (num === 1 ? 'guest' : 'guests')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
 
@@ -1013,7 +1061,7 @@ export const BookingModal = ({
             <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto border-amber-300 text-amber-700 hover:bg-amber-50">
               {language === 'zh' ? '取消' : 'Cancel'}
             </Button>
-            <Button type="submit" disabled={(bookingData.bookingType === 'token' && !hasEnoughTokens) || !bookingData.agreedToTerms} className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">{t.booking.confirm}</Button>
+            <Button type="submit" disabled={!isFormValid()} className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">{t.booking.confirm}</Button>
           </DialogFooter>
         </form>
         )}

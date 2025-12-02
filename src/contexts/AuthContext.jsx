@@ -23,43 +23,6 @@ export const AuthProvider = ({ children }) => {
       try {
         console.log('🔐 Initializing auth session...');
 
-        // Check if "Remember Me" was used and if session has expired
-        const rememberMe = localStorage.getItem('ofcoz_remember_me') === 'true';
-        const sessionExpiry = localStorage.getItem('ofcoz_session_expiry');
-
-        if (!rememberMe && sessionExpiry) {
-          // User did not check "Remember Me", check if it's a new browser session
-          // If sessionStorage doesn't have a marker, this is a new session
-          const sessionMarker = sessionStorage.getItem('ofcoz_active_session');
-          if (!sessionMarker) {
-            console.log('⚠️ New browser session detected without "Remember Me" - clearing auth');
-            await supabase.auth.signOut();
-            localStorage.removeItem('ofcoz_session_expiry');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        if (sessionExpiry) {
-          const expiryDate = new Date(sessionExpiry);
-          const now = new Date();
-
-          if (now > expiryDate) {
-            console.log('⚠️ Session expired based on Remember Me preference - logging out');
-            await supabase.auth.signOut();
-            localStorage.removeItem('ofcoz_remember_me');
-            localStorage.removeItem('ofcoz_session_expiry');
-            sessionStorage.removeItem('ofcoz_active_session');
-            setIsLoading(false);
-            return;
-          }
-
-          console.log('✅ Session still valid, expires:', expiryDate.toLocaleString());
-        }
-
-        // Mark this as an active session
-        sessionStorage.setItem('ofcoz_active_session', 'true');
-
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -173,7 +136,29 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
+    // Handle browser close - clear session if "Remember Me" was not checked
+    const handleBeforeUnload = () => {
+      const rememberMe = localStorage.getItem('ofcoz_remember_me') === 'true';
+      if (!rememberMe) {
+        console.log('🚪 Browser closing without "Remember Me" - clearing session');
+        // Clear all Supabase auth data from localStorage
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-')) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        localStorage.removeItem('ofcoz_session_expiry');
+      }
+    };
+
+    // Add event listener for browser close
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       subscription?.unsubscribe();
     };
   }, []);
@@ -289,10 +274,9 @@ export const AuthProvider = ({ children }) => {
       console.trace();
       await authService.signOut();
 
-      // Clear Remember Me preferences and session markers
+      // Clear Remember Me preferences
       localStorage.removeItem('ofcoz_remember_me');
       localStorage.removeItem('ofcoz_session_expiry');
-      sessionStorage.removeItem('ofcoz_active_session');
 
       setUser(null);
       setProfile(null);

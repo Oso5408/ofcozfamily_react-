@@ -733,6 +733,25 @@ export const emailService = {
       }
 
       console.log('✅ User cancellation confirmation email sent successfully');
+
+      // Mark email as sent in database
+      try {
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({ cancellation_email_sent: true })
+          .eq('id', booking.id);
+
+        if (updateError) {
+          console.error('⚠️ Failed to update cancellation_email_sent flag:', updateError);
+          // Don't fail the entire operation - email was sent successfully
+        } else {
+          console.log('✅ Marked cancellation_email_sent = true in database');
+        }
+      } catch (dbError) {
+        console.error('⚠️ Database update error:', dbError);
+        // Don't fail - email was sent successfully
+      }
+
       return { success: true };
     } catch (error) {
       console.error('❌ Exception in sendCancellationEmailToUser:', error);

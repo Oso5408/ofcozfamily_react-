@@ -147,7 +147,6 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [sendingEmailForBooking, setSendingEmailForBooking] = useState(null);
-  const [emailSentForBookings, setEmailSentForBookings] = useState(new Set());
   const [shouldRefundTokens, setShouldRefundTokens] = useState(true);
 
   // Helper function to sort bookings: cancelled bookings at top, sorted by cancelled_at
@@ -513,9 +512,6 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
         return;
       }
 
-      // Mark this booking as email sent
-      setEmailSentForBookings(prev => new Set([...prev, booking.id]));
-
       toast({
         title: t.admin.cancellationEmailSent,
         description: t.admin.cancellationEmailSentDesc,
@@ -836,7 +832,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   )}
                   {/* Send Cancellation Email button for cancelled bookings */}
                   {booking.status === 'cancelled' && (
-                    emailSentForBookings.has(booking.id) ? (
+                    booking.cancellation_email_sent ? (
                       <span className="px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-600 font-medium">
                         {t.admin.emailSent}
                       </span>
