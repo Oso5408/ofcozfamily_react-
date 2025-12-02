@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, onDirectPasswordChange }) => {
+export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, onDirectPasswordChange, onRefreshUsers }) => {
   const navigate = useNavigate();
   const { user: adminUser, deleteUser } = useAuth();
   const { language } = useLanguage();
@@ -110,9 +110,14 @@ export const AdminUsersTab = ({ users, setUsers, onRoleChange, onPasswordReset, 
   };
 
   const handleUserCreated = async () => {
-    // Fetch updated user list from parent component
-    // Parent component should handle refreshing the user list
-    window.location.reload(); // Simple refresh - parent can implement better data fetching
+    // Refresh user list without page reload to prevent session issues
+    console.log('👤 User created, refreshing list...');
+    if (onRefreshUsers) {
+      await onRefreshUsers();
+    } else {
+      console.warn('⚠️ onRefreshUsers not provided, falling back to reload');
+      window.location.reload();
+    }
   };
 
   return (

@@ -158,9 +158,15 @@ export const CreateUserModal = ({ isOpen, onClose, onUserCreated }) => {
       });
       setErrors({});
 
+      // Wait a bit for auth state to fully propagate before refreshing user list
+      // This prevents redirect issues during state updates
+      console.log('⏳ Waiting for auth state to stabilize...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Notify parent to refresh user list
       if (onUserCreated) {
-        onUserCreated();
+        console.log('📞 Calling onUserCreated...');
+        await onUserCreated();
       }
 
       onClose();

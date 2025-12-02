@@ -147,7 +147,7 @@ export const AdminPage = () => {
   const handleRoleChange = (userId, newIsAdmin) => {
     updateUserRole(userId, newIsAdmin);
     setUsers(prevUsers => prevUsers.map(u => u.id === userId ? {...u, isAdmin: newIsAdmin} : u));
-    
+
     const targetUser = users.find(u => u.id === userId);
     toast({
       title: t.admin.roleUpdated,
@@ -155,6 +155,30 @@ export const AdminPage = () => {
         .replace('{name}', targetUser.name)
         .replace('{role}', newIsAdmin ? (language === 'zh' ? '管理員' : 'Admin') : (language === 'zh' ? '用戶' : 'User'))
     });
+  };
+
+  // Refresh users list from Supabase
+  const refreshUsers = async () => {
+    console.log('🔄 Refreshing users list...');
+    try {
+      const usersResult = await userService.getAllUsers();
+      if (usersResult.success) {
+        console.log('✅ Users refreshed:', usersResult.users.length);
+        setUsers(usersResult.users);
+        return true;
+      } else {
+        console.error('❌ Failed to refresh users:', usersResult.error);
+        toast({
+          title: language === 'zh' ? '刷新失敗' : 'Refresh Failed',
+          description: language === 'zh' ? '無法刷新用戶列表' : 'Failed to refresh user list',
+          variant: 'destructive'
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing users:', error);
+      return false;
+    }
   };
 
   // Show confirmation dialog for password reset
@@ -598,7 +622,7 @@ export const AdminPage = () => {
                 <AdminBookingsTab bookings={filteredBookings} setBookings={setBookings} users={users} setUsers={setUsers} filterStatus={filterStatus} />
               )}
               {activeTab === 'users' && (
-                <AdminUsersTab users={users} setUsers={setUsers} onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} onDirectPasswordChange={handleDirectPasswordChange} />
+                <AdminUsersTab users={users} setUsers={setUsers} onRoleChange={handleRoleChange} onPasswordReset={handlePasswordReset} onDirectPasswordChange={handleDirectPasswordChange} onRefreshUsers={refreshUsers} />
               )}
               {activeTab === 'reviews' && (
                 <ReviewsTab bookings={bookings} reviews={reviews} setReviews={setReviews} isAdmin={true} />
