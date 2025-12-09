@@ -497,6 +497,8 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
                     crop={crop}
                     zoom={zoom}
                     aspect={4 / 3}
+                    minZoom={0.5}
+                    maxZoom={5}
                     onCropChange={setCrop}
                     onCropComplete={onCropComplete}
                     onZoomChange={setZoom}
@@ -505,17 +507,21 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
 
                 <div className="space-y-2">
                   <Label className="text-sm text-amber-700">
-                    {language === 'zh' ? '縮放' : 'Zoom'}
+                    {language === 'zh' ? '縮放' : 'Zoom'} ({zoom.toFixed(1)}x)
                   </Label>
                   <input
                     type="range"
                     value={zoom}
-                    min={1}
-                    max={3}
+                    min={0.5}
+                    max={5}
                     step={0.1}
                     onChange={(e) => setZoom(Number(e.target.value))}
                     className="w-full"
                   />
+                  <div className="flex justify-between text-xs text-amber-600">
+                    <span>{language === 'zh' ? '縮小 (0.5x)' : 'Zoom Out (0.5x)'}</span>
+                    <span>{language === 'zh' ? '放大 (5x)' : 'Zoom In (5x)'}</span>
+                  </div>
                 </div>
 
                 <div className="flex gap-2">
