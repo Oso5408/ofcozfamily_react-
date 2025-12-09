@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Phone, Instagram } from 'lucide-react';
+import { MapPin, MessageCircle, Instagram } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { translations } from '@/data/translations';
 
@@ -45,14 +45,16 @@ export const ContactSection = () => {
           </motion.a>
 
           <motion.a
-            href={`tel:${phoneNumber.replace(/\s/g, '')}`}
+            href={`https://wa.me/852${phoneNumber.replace(/\s/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.6 }}
             className="text-center group"
           >
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-              <Phone className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+              <MessageCircle className="w-8 h-8 text-white" />
             </div>
             <h3 className="font-semibold text-amber-800 mb-2">{t.contact.phone}</h3>
             <p className="text-amber-700 group-hover:text-amber-900 transition-colors">{phoneNumber}</p>

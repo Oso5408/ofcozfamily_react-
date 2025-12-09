@@ -262,6 +262,14 @@ export const UserDetailPage = () => {
     setNewExpiryDate('');
   };
 
+  // Helper function to detect if a transaction is a refund
+  const isRefundTransaction = (item) => {
+    return (
+      (item.notes && item.notes.toLowerCase().includes('refund')) ||
+      (item.reason && item.reason.toLowerCase().includes('refund'))
+    );
+  };
+
   const handleEditProfile = () => {
     setIsEditingProfile(true);
     setEditedProfile({
@@ -890,7 +898,12 @@ export const UserDetailPage = () => {
                                     </p>
                                   </td>
                                   <td className="px-4 py-3">
-                                    {editingExpiryId === item.id ? (
+                                    {isRefundTransaction(item) ? (
+                                      // Refund transactions don't need expiry dates
+                                      <p className="text-sm text-gray-400 italic">
+                                        -
+                                      </p>
+                                    ) : editingExpiryId === item.id ? (
                                       <div className="flex items-center gap-2">
                                         <Input
                                           type="date"

@@ -47,7 +47,6 @@ export const Header = () => {
   const navLinks = [
     { name: t.header.rooms, href: '#rooms' },
     { name: t.header.cats, href: '#cats' },
-    { name: t.header.pricing, href: '/pricing' },
     { name: t.header.contact, href: '#contact' },
   ];
 

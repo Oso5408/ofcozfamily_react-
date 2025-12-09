@@ -339,13 +339,26 @@ export const AuthProvider = ({ children }) => {
       console.log('✅ Current data:', userData);
       const currentBalance = userData[balanceField] || 0;
       const newBalance = currentBalance + brAmount;
-      console.log('💰 Balance update:', { currentBalance, newBalance });
 
-      // Update user balance
-      console.log('💾 Updating user balance...');
+      // Determine if we need to update expiry (only when adding credits, not deducting)
+      const expiryField = packageType === 'BR15' ? 'br15_expiry' : 'br30_expiry';
+      const shouldUpdateExpiry = brAmount > 0; // Only update expiry when adding credits
+      const newExpiry = shouldUpdateExpiry
+        ? (expiry || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString())
+        : undefined;
+
+      console.log('💰 Balance update:', { currentBalance, newBalance, expiryField, newExpiry, shouldUpdateExpiry });
+
+      // Update user balance and expiry (only if adding credits)
+      console.log('💾 Updating user balance and expiry...');
+      const updateData = { [balanceField]: newBalance };
+      if (shouldUpdateExpiry) {
+        updateData[expiryField] = newExpiry;
+      }
+
       const { data: updatedUsers, error: updateError } = await supabase
         .from('users')
-        .update({ [balanceField]: newBalance })
+        .update(updateData)
         .eq('id', userId)
         .select();
 

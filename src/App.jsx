@@ -9,7 +9,6 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
-import { PricingPage } from '@/pages/PricingPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AuthCallbackPage } from '@/pages/AuthCallbackPage';
@@ -29,7 +28,6 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/rooms" element={<RoomsPage />} />
-              <Route path="/pricing" element={<PricingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

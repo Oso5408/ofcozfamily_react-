@@ -83,8 +83,7 @@ export const ProfileSection = () => {
         toast({
             title: t.notifications.title,
             description: t.notifications.lowToken,
-            variant: "destructive",
-            action: <Link to="/pricing"><Button variant="outline" size="sm">{t.notifications.rechargeNow}</Button></Link>
+            variant: "destructive"
         });
     }
   };

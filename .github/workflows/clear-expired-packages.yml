@@ -1,0 +1,40 @@
+name: Clear Expired Packages
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC (8:00 AM Hong Kong Time)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  clear-expired:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear Expired Packages
+        run: |
+          echo "🚀 Triggering clear expired packages function..."
+
+          response=$(curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -w "\n%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/clear-expired-packages")
+
+          http_code=$(echo "$response" | tail -n 1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "📡 Response (HTTP $http_code):"
+          echo "$body" | jq '.' || echo "$body"
+
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Successfully cleared expired packages"
+          else
+            echo "❌ Failed to clear expired packages"
+            exit 1
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Workflow failed! Check the logs above."
+          # Add notification logic here (e.g., Slack, Discord, Email)
