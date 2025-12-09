@@ -82,7 +82,7 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
   useEffect(() => {
-    if (room) {
+    if (room && isOpen) {
       // Get room descriptions from database or fallback to translations
       const roomKey = room.description || room.name;
       const enDescription = room.description_en || t.rooms.roomDescriptions?.[roomKey] || '';
@@ -118,7 +118,7 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
       setShowCropper(false);
       setOriginalImageSrc(null);
     }
-  }, [room, t]);
+  }, [room, t, isOpen]);
 
   const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -307,6 +307,27 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
 
       console.log('✅ Descriptions saved');
 
+      // Identify deleted images (images that were in room.images but are not in current images array)
+      const originalImages = room.images || [];
+      const currentImageUrls = images.map(img => img.url);
+      const deletedImages = originalImages
+        .filter(img => !currentImageUrls.includes(img.url))
+        .map(img => img.url);
+
+      console.log('🗑️ Images to delete from storage:', deletedImages.length);
+
+      // Delete removed images from storage
+      if (deletedImages.length > 0) {
+        for (const imageUrl of deletedImages) {
+          const deleteResult = await roomService.deleteRoomImage(imageUrl);
+          if (deleteResult.success) {
+            console.log('✅ Deleted image from storage:', imageUrl);
+          } else {
+            console.warn('⚠️ Failed to delete image:', imageUrl, deleteResult.error);
+          }
+        }
+      }
+
       // Check if there are any images to save
       if (images.length > 0) {
         // Check if there are any new images to upload
@@ -371,7 +392,11 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
                 : 'Room descriptions and image settings updated',
           });
 
-          if (onSuccess) {
+          // Fetch the complete updated room from database to ensure we have the latest data
+          const refreshResult = await roomService.getRoomById(room.id);
+          if (refreshResult.success && onSuccess) {
+            onSuccess(refreshResult.room);
+          } else if (onSuccess) {
             onSuccess(updateResult.room || room);
           }
         }
@@ -379,12 +404,23 @@ export const EditRoomModal = ({ isOpen, onClose, room, onSuccess }) => {
         // No images - descriptions already saved above
         console.log('📝 No images - descriptions already saved');
 
+        // Still need to update the room.images to empty array
+        const updateResult = await roomService.updateRoomImages(room.id, []);
+
+        if (!updateResult.success && !updateResult.error.includes('images') && !updateResult.error.includes('PGRST204')) {
+          console.warn('⚠️ Failed to clear images array:', updateResult.error);
+        }
+
         toast({
           title: language === 'zh' ? '✅ 房間已更新' : '✅ Room Updated',
           description: language === 'zh' ? '房間描述已成功更新' : 'Room descriptions updated successfully',
         });
 
-        if (onSuccess) {
+        // Fetch the complete updated room from database
+        const refreshResult = await roomService.getRoomById(room.id);
+        if (refreshResult.success && onSuccess) {
+          onSuccess(refreshResult.room);
+        } else if (onSuccess) {
           onSuccess(descResult.room || room);
         }
       }

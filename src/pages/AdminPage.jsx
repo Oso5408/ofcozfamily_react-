@@ -411,11 +411,23 @@ export const AdminPage = () => {
     }
   };
 
-  const handleRoomUpdate = (updatedRoom) => {
-    // Update the room in the local state
-    const updatedRooms = rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r);
-    setRooms(updatedRooms);
-    console.log('✅ Room updated in local state:', updatedRoom);
+  const handleRoomUpdate = async (updatedRoom) => {
+    console.log('🔄 Handling room update:', updatedRoom);
+
+    // Fetch the complete updated room from database to ensure we have ALL fields
+    const refreshResult = await roomService.getRoomById(updatedRoom.id);
+
+    if (refreshResult.success) {
+      // Update the room in the local state with the complete data from database
+      const updatedRooms = rooms.map(r => r.id === refreshResult.room.id ? refreshResult.room : r);
+      setRooms(updatedRooms);
+      console.log('✅ Room updated in local state with fresh database data:', refreshResult.room);
+    } else {
+      // Fallback: use the provided updatedRoom
+      const updatedRooms = rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r);
+      setRooms(updatedRooms);
+      console.log('✅ Room updated in local state (fallback):', updatedRoom);
+    }
   };
 
 
