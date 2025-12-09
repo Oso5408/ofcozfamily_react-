@@ -310,6 +310,7 @@ export const bookingService = {
   async adminCancelBooking(bookingId, adminUserId, reason = 'Cancelled by admin', shouldRefund = true) {
     try {
       console.log('🔧 Admin cancelling booking:', bookingId, 'shouldRefund:', shouldRefund);
+      console.log('🔍 shouldRefund type:', typeof shouldRefund, 'value:', shouldRefund);
 
       // Fetch booking details with user info
       // Use users!bookings_user_id_fkey to specify we want the booking owner's info
@@ -357,19 +358,26 @@ export const bookingService = {
         if (paymentMethod === 'token') {
           // Refund regular tokens
           const tokensToRefund = booking.total_cost || 0;
+          console.log('🔍 Token refund details:', { tokensToRefund, userId, bookingId });
+
           if (tokensToRefund > 0) {
-            const { error: refundError } = await supabase.rpc('add_tokens', {
+            const { data: refundData, error: refundError } = await supabase.rpc('add_tokens', {
               p_user_id: userId,
               p_amount: tokensToRefund,
               p_booking_id: bookingId,
               p_description: `Refund from cancelled booking #${booking.receipt_number || bookingId}`
             });
 
+            console.log('🔍 RPC response:', { data: refundData, error: refundError });
+
             if (refundError) {
               console.error('❌ Failed to refund tokens:', refundError);
+              console.error('❌ Error details:', JSON.stringify(refundError, null, 2));
             } else {
               console.log(`✅ Refunded ${tokensToRefund} tokens to user`);
             }
+          } else {
+            console.log('⚠️ No tokens to refund (total_cost is 0)');
           }
         } else if (paymentMethod === 'dp20') {
           // Refund DP20 package days (1 day per booking)
@@ -520,13 +528,15 @@ export const bookingService = {
       console.log('🔧 markAsPaid called with:', { bookingId, adminUserId, adminNotes });
 
       // First, update the booking
+      const now = new Date().toISOString();
       const { data: updateData, error: updateError } = await supabase
         .from('bookings')
         .update({
           payment_status: 'completed',
           status: 'confirmed', // Admin manual confirmation goes directly to confirmed
-          payment_confirmed_at: new Date().toISOString(),
+          payment_confirmed_at: now,
           payment_confirmed_by: adminUserId,
+          confirmed_at: now, // Track when booking was confirmed
           admin_notes: adminNotes,
         })
         .eq('id', bookingId)
@@ -729,6 +739,7 @@ export const bookingService = {
       }
 
       // Prepare booking data
+      const now = new Date().toISOString();
       const bookingInsertData = {
         user_id: bookingData.userId,
         room_id: bookingData.roomId,
@@ -739,6 +750,7 @@ export const bookingService = {
         payment_status: 'completed', // Auto-complete for admin bookings
         total_cost: bookingData.totalCost,
         status: 'confirmed', // Auto-confirm for admin bookings
+        confirmed_at: now, // Track when booking was confirmed (at creation for admin bookings)
         notes: bookingData.notes,
         equipment: bookingData.equipment || [],
         purpose: bookingData.purpose,

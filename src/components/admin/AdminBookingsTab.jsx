@@ -81,6 +81,7 @@ const normalizeBooking = (booking) => {
     room: booking.rooms || booking.room,
     // Normalize date fields with proper formatting
     createdAt: booking.created_at || booking.createdAt,
+    confirmedAt: booking.confirmed_at || booking.confirmedAt,
     date: booking.start_time ? formatDate(booking.start_time, true) : booking.date, // Include weekday
     startTime: booking.start_time ? formatTime(booking.start_time) : booking.startTime,
     endTime: booking.end_time ? formatTime(booking.end_time) : booking.endTime,
@@ -149,23 +150,27 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
   const [sendingEmailForBooking, setSendingEmailForBooking] = useState(null);
   const [shouldRefundTokens, setShouldRefundTokens] = useState(true);
 
-  // Helper function to sort bookings: cancelled bookings at top, sorted by cancelled_at
-  // Non-cancelled bookings below, sorted by createdAt
-  const sortBookings = (bookingsToSort) => {
+  // Helper function to sort bookings based on filter status
+  // For cancelled/confirmed filters: sort by action timestamp (newest first)
+  // For other filters: sort by created_at (newest first)
+  const sortBookings = (bookingsToSort, currentFilter) => {
     return [...bookingsToSort].sort((a, b) => {
-      // Cancelled bookings always come first
-      if (a.status === 'cancelled' && b.status !== 'cancelled') return -1;
-      if (a.status !== 'cancelled' && b.status === 'cancelled') return 1;
-
-      // Both cancelled: sort by cancelled_at (newest first)
-      if (a.status === 'cancelled' && b.status === 'cancelled') {
-        const aDate = new Date(a.cancelled_at || a.createdAt);
-        const bDate = new Date(b.cancelled_at || b.createdAt);
-        return bDate - aDate;
+      // Sort by cancelled_at when viewing cancelled filter
+      if (currentFilter === 'cancelled' && a.status === 'cancelled' && b.status === 'cancelled') {
+        const aDate = new Date(a.cancelled_at || a.created_at);
+        const bDate = new Date(b.cancelled_at || b.created_at);
+        return bDate - aDate; // Most recent cancellation first
       }
 
-      // Both not cancelled: sort by createdAt (newest first)
-      return new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at);
+      // Sort by confirmed_at when viewing confirmed filter
+      if (currentFilter === 'confirmed' && a.status === 'confirmed' && b.status === 'confirmed') {
+        const aDate = new Date(a.confirmed_at || a.created_at);
+        const bDate = new Date(b.confirmed_at || b.created_at);
+        return bDate - aDate; // Most recent confirmation first
+      }
+
+      // Default: sort by created_at (newest first)
+      return new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt);
     });
   };
 
@@ -215,7 +220,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       b.id === bookingId ? updatedBooking : b
     );
     localStorage.setItem('ofcoz_bookings', JSON.stringify(updatedBookings));
-    setBookings(sortBookings(updatedBookings));
+    setBookings(sortBookings(updatedBookings, filterStatus));
     
     if (newStatus === 'confirmed') {
       sendBookingConfirmationEmail(updatedBooking, language);
@@ -259,7 +264,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
             ? { ...b, status: 'cancelled', cancelled_at: new Date().toISOString(), cancellation_reviewed: false }
             : b
         );
-        return sortBookings(updatedBookings);
+        return sortBookings(updatedBookings, filterStatus);
       });
 
       // Send cancellation email to user
@@ -342,7 +347,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Refresh bookings list
       const refreshResult = await bookingService.getAllBookings();
       if (refreshResult.success) {
-        setBookings(sortBookings(refreshResult.bookings));
+        setBookings(sortBookings(refreshResult.bookings, filterStatus));
       }
       setEditingBooking(null);
 
@@ -385,7 +390,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Reload all bookings from Supabase to get fresh data
       const bookingsResult = await bookingService.getAllBookings();
       if (bookingsResult.success) {
-        setBookings(sortBookings(bookingsResult.bookings));
+        setBookings(sortBookings(bookingsResult.bookings, filterStatus));
         console.log('✅ Bookings reloaded after payment confirmation');
       }
 
@@ -434,11 +439,13 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
 
     try {
       // Admin confirmation always goes directly to 'confirmed'
+      const now = new Date().toISOString();
       const result = await bookingService.updateBooking(booking.id, {
         status: 'confirmed',
         payment_status: 'completed',
-        payment_confirmed_at: new Date().toISOString(),
+        payment_confirmed_at: now,
         payment_confirmed_by: currentUser.id,
+        confirmed_at: now, // Track when booking was confirmed
       });
 
       if (!result.success) {
@@ -477,7 +484,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
       // Reload all bookings from Supabase
       const bookingsResult = await bookingService.getAllBookings();
       if (bookingsResult.success) {
-        setBookings(sortBookings(bookingsResult.bookings));
+        setBookings(sortBookings(bookingsResult.bookings, filterStatus));
       }
 
       // Close the modal
@@ -615,7 +622,7 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
 
   const handleBookingCreated = (newBooking) => {
     // Add the new booking to the list with sorting
-    setBookings(sortBookings([newBooking, ...bookings]));
+    setBookings(sortBookings([newBooking, ...bookings], filterStatus));
     toast({
       title: t.admin.bookingCreatedSuccess,
       description: language === 'zh' ? '預約已成功建立' : 'Booking created successfully',
@@ -793,12 +800,45 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                       <span>{booking.receiptNumber}</span>
                     </div>
                   )}
-                  <div className="flex items-center text-amber-600 mt-1">
-                    <Clock className="w-4 h-4 mr-1" />
-                    <span className="text-sm">
-                      {language === 'zh' ? '預約於' : 'Booked on'} {new Date(booking.createdAt).toLocaleDateString('en-GB')}
-                    </span>
-                  </div>
+                  {/* Show action date with time for cancelled/confirmed filters */}
+                  {filterStatus === 'cancelled' && booking.cancelled_at ? (
+                    <div className="flex flex-col text-amber-600 mt-1 space-y-0.5">
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        <span className="text-sm font-semibold">
+                          {language === 'zh' ? '取消於' : 'Cancelled on'} {new Date(booking.cancelled_at).toLocaleString(language === 'zh' ? 'zh-HK' : 'en-GB', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500 ml-5">
+                        {language === 'zh' ? '預約於' : 'Booked on'} {new Date(booking.createdAt).toLocaleDateString('en-GB')}
+                      </div>
+                    </div>
+                  ) : filterStatus === 'confirmed' && booking.confirmedAt ? (
+                    <div className="flex flex-col text-amber-600 mt-1 space-y-0.5">
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        <span className="text-sm font-semibold">
+                          {language === 'zh' ? '確認於' : 'Confirmed on'} {new Date(booking.confirmedAt).toLocaleString(language === 'zh' ? 'zh-HK' : 'en-GB', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500 ml-5">
+                        {language === 'zh' ? '預約於' : 'Booked on'} {new Date(booking.createdAt).toLocaleDateString('en-GB')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-amber-600 mt-1">
+                      <Clock className="w-4 h-4 mr-1" />
+                      <span className="text-sm">
+                        {language === 'zh' ? '預約於' : 'Booked on'} {new Date(booking.createdAt).toLocaleDateString('en-GB')}
+                      </span>
+                    </div>
+                  )}
                   {booking.bookingType === 'token' && booking.tokensUsed > 0 && (
                     <div className="flex items-center mt-1">
                       <span className="token-badge text-xs">

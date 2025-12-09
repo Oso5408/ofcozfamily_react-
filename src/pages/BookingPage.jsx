@@ -310,6 +310,16 @@ export const BookingPage = () => {
         projectorFee: bookingData.wantsProjector && (selectedRoom.id === 2 || selectedRoom.id === 4) ? 20 : 0,
       });
 
+      // Determine correct payment method
+      // If user selected a BR package (BR15/BR30), use that as payment method
+      // Otherwise use the bookingType (token, cash, dp20)
+      let actualPaymentMethod = bookingData.bookingType;
+      if (bookingData.bookingType === 'token' && bookingData.selectedBRPackage) {
+        // Convert BR15 → br15, BR30 → br30
+        actualPaymentMethod = bookingData.selectedBRPackage.toLowerCase();
+        console.log('🔧 Payment method corrected:', bookingData.bookingType, '→', actualPaymentMethod);
+      }
+
       // Create booking in Supabase
       const result = await bookingService.createBooking({
         userId: user?.id,
@@ -317,11 +327,11 @@ export const BookingPage = () => {
         startTime: startDateTime,
         endTime: endDateTime,
         bookingType: bookingData.rentalType, // 'hourly', 'daily', 'monthly'
-        paymentMethod: bookingData.bookingType, // 'token' or 'cash' or 'dp20'
+        paymentMethod: actualPaymentMethod, // 'token', 'cash', 'dp20', 'br15', or 'br30'
         paymentStatus: bookingData.bookingType === 'cash' ? 'pending' : 'completed',
         totalCost: totalCost,
         // Cash: 'pending' (待付款) → waiting for payment
-        // Token/DP20: 'to_be_confirmed' (待確認) → payment completed, awaiting confirmation
+        // Token/DP20/BR: 'to_be_confirmed' (待確認) → payment completed, awaiting confirmation
         status: bookingData.bookingType === 'cash' ? 'pending' : 'to_be_confirmed',
         notes: notes,
         equipment: bookingData.equipment || [],
