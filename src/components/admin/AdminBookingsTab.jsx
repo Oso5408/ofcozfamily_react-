@@ -909,8 +909,8 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                   {booking.status === 'to_be_confirmed' && !booking.receipt_url && booking.paymentMethod === 'cash' && (
                     <span className="text-sm text-yellow-600 italic">{language === 'zh' ? '等待收據上傳' : 'Awaiting receipt upload'}</span>
                   )}
-                  {/* For token/DP20 payments with to_be_confirmed status, show confirmation button */}
-                  {booking.status === 'to_be_confirmed' && (booking.paymentMethod === 'token' || booking.paymentMethod === 'dp20') && (
+                  {/* For token/DP20/BR15/BR30 payments with to_be_confirmed status, show confirmation button */}
+                  {booking.status === 'to_be_confirmed' && ['token', 'dp20', 'br15', 'br30'].includes(booking.paymentMethod) && (
                     <Button onClick={() => handleViewReceipt(booking)} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
                       <CheckCircle className="w-4 h-4 mr-1" />
                       {t.admin.confirmBooking}
