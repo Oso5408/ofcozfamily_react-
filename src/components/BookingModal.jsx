@@ -109,7 +109,8 @@ export const BookingModal = ({
         phone: ''
       }));
     }
-  }, [useAccountInfo, user, isOpen, setBookingData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useAccountInfo, user, isOpen]);
 
   // Refresh profile when modal opens to get latest BR balance (only once per open)
   useEffect(() => {
