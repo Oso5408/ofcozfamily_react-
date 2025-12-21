@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -82,6 +82,7 @@ const normalizeBooking = (booking) => {
     // Normalize date fields with proper formatting
     createdAt: booking.created_at || booking.createdAt,
     confirmedAt: booking.confirmed_at || booking.confirmedAt,
+    cancelledAt: booking.cancelled_at || booking.cancelledAt,
     date: booking.start_time ? formatDate(booking.start_time, true) : booking.date, // Include weekday
     startTime: booking.start_time ? formatTime(booking.start_time) : booking.startTime,
     endTime: booking.end_time ? formatTime(booking.end_time) : booking.endTime,
@@ -174,8 +175,12 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
     });
   };
 
-  // Normalize all bookings
-  const normalizedBookings = bookings.map(normalizeBooking);
+  // Normalize and sort all bookings
+  // useMemo ensures sorting is applied when bookings or filterStatus changes
+  const normalizedBookings = useMemo(() => {
+    const normalized = bookings.map(normalizeBooking);
+    return sortBookings(normalized, filterStatus);
+  }, [bookings, filterStatus]);
 
   // Load rooms on component mount
   useEffect(() => {

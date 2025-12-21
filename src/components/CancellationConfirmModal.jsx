@@ -53,8 +53,8 @@ export const CancellationConfirmModal = ({ isOpen, onClose, booking, onCancelSuc
       toast({
         title: t.cancellation.cancelSuccess,
         description: language === 'zh'
-          ? '預約已取消（免費）'
-          : 'Booking cancelled (FREE - no charges)'
+          ? '預約已取消'
+          : 'Booking cancelled'
       });
 
       if (onCancelSuccess) {
