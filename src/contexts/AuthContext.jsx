@@ -136,29 +136,8 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    // Handle browser close - clear session if "Remember Me" was not checked
-    const handleBeforeUnload = () => {
-      const rememberMe = localStorage.getItem('ofcoz_remember_me') === 'true';
-      if (!rememberMe) {
-        console.log('🚪 Browser closing without "Remember Me" - clearing session');
-        // Clear all Supabase auth data from localStorage
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('sb-')) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-        localStorage.removeItem('ofcoz_session_expiry');
-      }
-    };
-
-    // Add event listener for browser close
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
+    // Clean up auth state listener on unmount
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       subscription?.unsubscribe();
     };
   }, []);

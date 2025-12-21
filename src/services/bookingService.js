@@ -394,8 +394,18 @@ export const bookingService = {
             console.log(`✅ Refunded ${daysToRefund} DP20 day(s) to user`);
           }
         } else if (paymentMethod === 'br15') {
-          // Refund BR15 package hours
-          const hoursToRefund = booking.total_cost || 0;
+          // Refund BR15 package hours - Calculate from actual booking duration
+          const startTime = new Date(booking.start_time);
+          const endTime = new Date(booking.end_time);
+          const hoursToRefund = Math.ceil((endTime - startTime) / (1000 * 60 * 60));
+
+          console.log('🔍 BR15 refund calculation:', {
+            start: booking.start_time,
+            end: booking.end_time,
+            hoursToRefund,
+            incorrectTotalCost: booking.total_cost
+          });
+
           const { error: refundError } = await supabase.rpc('refund_br15_hours', {
             p_user_id: userId,
             p_hours: hoursToRefund,
@@ -408,8 +418,18 @@ export const bookingService = {
             console.log(`✅ Refunded ${hoursToRefund} BR15 hour(s) to user`);
           }
         } else if (paymentMethod === 'br30') {
-          // Refund BR30 package hours
-          const hoursToRefund = booking.total_cost || 0;
+          // Refund BR30 package hours - Calculate from actual booking duration
+          const startTime = new Date(booking.start_time);
+          const endTime = new Date(booking.end_time);
+          const hoursToRefund = Math.ceil((endTime - startTime) / (1000 * 60 * 60));
+
+          console.log('🔍 BR30 refund calculation:', {
+            start: booking.start_time,
+            end: booking.end_time,
+            hoursToRefund,
+            incorrectTotalCost: booking.total_cost
+          });
+
           const { error: refundError } = await supabase.rpc('refund_br30_hours', {
             p_user_id: userId,
             p_hours: hoursToRefund,
