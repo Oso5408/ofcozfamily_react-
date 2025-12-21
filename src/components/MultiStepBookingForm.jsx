@@ -84,7 +84,8 @@ export const MultiStepBookingForm = ({
         phone: ''
       }));
     }
-  }, [useAccountInfo, user, setBookingData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useAccountInfo, user]);
 
   // Fetch available time slots when date or room changes
   useEffect(() => {
@@ -327,7 +328,7 @@ export const MultiStepBookingForm = ({
               <Input
                 id="name"
                 value={bookingData.name}
-                onChange={(e) => setBookingData({ ...bookingData, name: e.target.value })}
+                onChange={(e) => setBookingData(prev => ({ ...prev, name: e.target.value }))}
                 className="border-amber-200 focus:border-amber-400"
               />
             </div>
@@ -338,7 +339,7 @@ export const MultiStepBookingForm = ({
           id="email"
           type="email"
           value={bookingData.email}
-          onChange={(e) => setBookingData({ ...bookingData, email: e.target.value })}
+          onChange={(e) => setBookingData(prev => ({ ...prev, email: e.target.value }))}
           className="border-amber-200 focus:border-amber-400"
         />
       </div>
@@ -349,7 +350,7 @@ export const MultiStepBookingForm = ({
           id="phone"
           required
           value={bookingData.phone}
-          onChange={(e) => setBookingData({ ...bookingData, phone: e.target.value })}
+          onChange={(e) => setBookingData(prev => ({ ...prev, phone: e.target.value }))}
           className="border-amber-200 focus:border-amber-400"
         />
       </div>
@@ -359,13 +360,13 @@ export const MultiStepBookingForm = ({
         <Input
           type="date"
           value={bookingData.date || ''}
-          onChange={(e) => setBookingData({
-            ...bookingData,
+          onChange={(e) => setBookingData(prev => ({
+            ...prev,
             date: e.target.value,
             // Preserve Day Pass fixed times, reset for other rooms
             startTime: isDayPass ? '10:00' : '',
             endTime: isDayPass ? '18:30' : ''
-          })}
+          }))}
           className="border-amber-200 focus:border-amber-400"
           min={new Date().toISOString().split('T')[0]}
         />
@@ -391,7 +392,7 @@ export const MultiStepBookingForm = ({
           <Select
             value={bookingData.startTime || ''}
             onValueChange={(value) => {
-              setBookingData({ ...bookingData, startTime: value, endTime: '' });
+              setBookingData(prev => ({ ...prev, startTime: value, endTime: '' }));
               setTimeDurationError(false); // Clear error when time changes
             }}
           >
@@ -408,7 +409,7 @@ export const MultiStepBookingForm = ({
         <div>
           <Label className="text-amber-800">{t.booking.endTime}</Label>
           <Select value={bookingData.endTime || ''} onValueChange={(value) => {
-            setBookingData({ ...bookingData, endTime: value });
+            setBookingData(prev => ({ ...prev, endTime: value }));
             setTimeDurationError(false); // Clear error when time changes
           }}>
             <SelectTrigger disabled={!bookingData.startTime}>
@@ -447,7 +448,7 @@ export const MultiStepBookingForm = ({
           min="1"
           max={selectedRoom?.capacity}
           value={bookingData.guests || 1}
-          onChange={(e) => setBookingData({ ...bookingData, guests: parseInt(e.target.value) || 1 })}
+          onChange={(e) => setBookingData(prev => ({ ...prev, guests: parseInt(e.target.value) || 1 }))}
           className="border-amber-200 focus:border-amber-400 font-bold"
         />
       </div>
@@ -480,7 +481,7 @@ export const MultiStepBookingForm = ({
             <Textarea
               id="other-purpose"
               value={bookingData.otherPurpose || ''}
-              onChange={(e) => setBookingData({ ...bookingData, otherPurpose: e.target.value })}
+              onChange={(e) => setBookingData(prev => ({ ...prev, otherPurpose: e.target.value }))}
               placeholder={t.booking.otherPurposePlaceholder}
               className="border-amber-200 focus:border-amber-400"
             />
@@ -507,12 +508,16 @@ export const MultiStepBookingForm = ({
                   onCheckedChange={(checked) => {
                     if (checked) {
                       // Add equipment with default quantity of 1 (actual value, not placeholder)
-                      const newEquipment = [...(bookingData.equipment || []), { type: key, quantity: 1 }];
-                      setBookingData({ ...bookingData, equipment: newEquipment });
+                      setBookingData(prev => ({
+                        ...prev,
+                        equipment: [...(prev.equipment || []), { type: key, quantity: 1 }]
+                      }));
                     } else {
                       // Remove equipment
-                      const newEquipment = (bookingData.equipment || []).filter(item => item.type !== key);
-                      setBookingData({ ...bookingData, equipment: newEquipment });
+                      setBookingData(prev => ({
+                        ...prev,
+                        equipment: (prev.equipment || []).filter(item => item.type !== key)
+                      }));
                     }
                   }}
                 />
@@ -524,10 +529,12 @@ export const MultiStepBookingForm = ({
                     value={(equipmentItem?.quantity ?? 1).toString()}
                     onValueChange={(value) => {
                       const newQuantity = parseInt(value);
-                      const newEquipment = (bookingData.equipment || []).map(item =>
-                        item.type === key ? { ...item, quantity: newQuantity } : item
-                      );
-                      setBookingData({ ...bookingData, equipment: newEquipment });
+                      setBookingData(prev => ({
+                        ...prev,
+                        equipment: (prev.equipment || []).map(item =>
+                          item.type === key ? { ...item, quantity: newQuantity } : item
+                        )
+                      }));
                     }}
                   >
                     <SelectTrigger className="w-24 border-amber-200 focus:border-amber-400">
@@ -555,7 +562,7 @@ export const MultiStepBookingForm = ({
         <Textarea
           id="requests"
           value={bookingData.specialRequests || ''}
-          onChange={(e) => setBookingData({ ...bookingData, specialRequests: e.target.value })}
+          onChange={(e) => setBookingData(prev => ({ ...prev, specialRequests: e.target.value }))}
           placeholder={t.booking.specialRequestsPlaceholderUpdated}
           className="border-amber-200 focus:border-amber-400 placeholder-gray-400 mt-2"
         />
