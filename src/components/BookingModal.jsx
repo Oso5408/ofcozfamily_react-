@@ -767,19 +767,25 @@ export const BookingModal = ({
                   <div className="space-y-4">
                     {/* DP20 Balance Display */}
                     <div className="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg border-2 border-green-200">
-                      <h4 className="text-green-800 font-semibold mb-2">{t.booking.dp20Package}</h4>
+                      <h4 className="text-green-800 font-semibold mb-2">{t.booking?.dp20Package || 'DP20 Package'}</h4>
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">{language === 'zh' ? '剩餘次數:' : 'Remaining visits:'}</span>
                           <span className={`font-bold ${(user.dp20_balance || 0) > 5 ? 'text-green-700' : (user.dp20_balance || 0) > 0 ? 'text-orange-600' : 'text-red-600'}`}>
-                            {t.booking.dp20Balance.replace('{balance}', user.dp20_balance || 0)}
+                            {(t.booking?.dp20Balance || 'DP20 Balance: {balance} visits').replace('{balance}', user.dp20_balance || 0)}
                           </span>
                         </div>
                         {user.dp20_expiry && (
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-gray-600">{language === 'zh' ? '有效期至:' : 'Valid until:'}</span>
                             <span className={`text-sm font-medium ${new Date(user.dp20_expiry) < new Date() ? 'text-red-600' : new Date(user.dp20_expiry) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ? 'text-orange-600' : 'text-green-700'}`}>
-                              {new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US')}
+                              {(() => {
+                                try {
+                                  return new Date(user.dp20_expiry).toLocaleDateString(language === 'zh' ? 'zh-HK' : 'en-US');
+                                } catch (e) {
+                                  return 'N/A';
+                                }
+                              })()}
                             </span>
                           </div>
                         )}
@@ -792,7 +798,7 @@ export const BookingModal = ({
                             {language === 'zh' ? '📢 您目前沒有DP20套票' : '📢 You don\'t have a DP20 package yet'}
                           </p>
                           <p className="text-xs text-blue-700">
-                            {t.booking.dp20PackageInfo}
+                            {t.booking?.dp20PackageInfo || 'Purchase 20 One Day Passes for $1000 (90-day validity).'}
                           </p>
                           <p className="text-xs text-blue-600 mt-2">
                             {language === 'zh'
@@ -804,7 +810,7 @@ export const BookingModal = ({
                       {user.dp20_expiry && new Date(user.dp20_expiry) < new Date() && (
                         <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
                           <p className="text-sm text-red-700 font-medium">
-                            {t.booking.dp20Expired}
+                            {t.booking?.dp20Expired || 'Your DP20 package has expired'}
                           </p>
                         </div>
                       )}
