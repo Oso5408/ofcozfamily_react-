@@ -1050,16 +1050,28 @@ export const AdminBookingsTab = ({ bookings = [], setBookings, users = [], setUs
                       {booking.paymentMethod === 'token' && (
                         <span>{booking.totalCost} {language === 'zh' ? '代幣已使用 (Token)' : 'tokens used (Token)'}</span>
                       )}
-                      {booking.paymentMethod === 'br15' && (
-                        <span className="text-blue-700">
-                          {booking.totalCost} {language === 'zh' ? '小時 (BR15包)' : 'hours (BR15)'}
-                        </span>
-                      )}
-                      {booking.paymentMethod === 'br30' && (
-                        <span className="text-purple-700">
-                          {booking.totalCost} {language === 'zh' ? '小時 (BR30包)' : 'hours (BR30)'}
-                        </span>
-                      )}
+                      {booking.paymentMethod === 'br15' && (() => {
+                        // Calculate actual hours from booking duration (ignore totalCost which may include projector fee)
+                        const startTime = new Date(booking.start_time);
+                        const endTime = new Date(booking.end_time);
+                        const actualHours = Math.ceil((endTime - startTime) / (1000 * 60 * 60));
+                        return (
+                          <span className="text-blue-700">
+                            {actualHours} {language === 'zh' ? '小時 (BR15包)' : 'hours (BR15)'}
+                          </span>
+                        );
+                      })()}
+                      {booking.paymentMethod === 'br30' && (() => {
+                        // Calculate actual hours from booking duration (ignore totalCost which may include projector fee)
+                        const startTime = new Date(booking.start_time);
+                        const endTime = new Date(booking.end_time);
+                        const actualHours = Math.ceil((endTime - startTime) / (1000 * 60 * 60));
+                        return (
+                          <span className="text-purple-700">
+                            {actualHours} {language === 'zh' ? '小時 (BR30包)' : 'hours (BR30)'}
+                          </span>
+                        );
+                      })()}
                       {booking.paymentMethod === 'dp20' && (
                         <span className="text-green-700">
                           1 {language === 'zh' ? '日 (DP20包)' : 'day (DP20)'}

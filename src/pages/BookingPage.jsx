@@ -131,8 +131,13 @@ export const BookingPage = () => {
     const end = parseInt(endTime.split(':')[0]);
     const baseTokens = Math.max(0, end - start);
 
-    // Add projector fee if selected (Room C or Room E)
-    const projectorFee = bookingData.wantsProjector && (selectedRoom?.id === 2 || selectedRoom?.id === 4) ? 20 : 0;
+    // Add projector fee ONLY for regular token bookings (NOT for BR packages)
+    // BR packages include equipment for free
+    const isUsingBRPackage = bookingData.selectedBRPackage; // BR15 or BR30
+    const shouldAddProjectorFee = bookingData.wantsProjector &&
+                                   (selectedRoom?.id === 2 || selectedRoom?.id === 4) &&
+                                   !isUsingBRPackage;
+    const projectorFee = shouldAddProjectorFee ? 20 : 0;
 
     return baseTokens + projectorFee;
   };
